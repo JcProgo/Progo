@@ -1,6 +1,6 @@
 # PROGO — Resumen técnico maestro
 
-**Propósito de este documento:** contexto completo para retomar el desarrollo de PROGO en una conversación nueva sin perder ninguna decisión, estado o pendiente. Última actualización: 2026-07-09.
+**Propósito de este documento:** contexto completo para retomar el desarrollo de PROGO en una conversación nueva sin perder ninguna decisión, estado o pendiente. Última actualización: 2026-07-09 (sesión de consolidación: módulo de Egresos, SQL canónico, selector de idioma retirado, code-splitting de Recharts).
 
 ---
 
@@ -14,7 +14,7 @@ Secciones: Resumen, Gastos, Ingresos y saldos, Metas, Rutina, Trading, Tareas di
 
 ## 2. Arquitectura
 
-- **Frontend:** React 19 + Vite 8, un solo archivo `src/App.jsx` (~2940 líneas, todos los componentes). Sin router — navegación por estado (`view`) en el shell de `App()`.
+- **Frontend:** React 19 + Vite 8, un solo archivo `src/App.jsx` (~2990 líneas, todos los componentes). Sin router — navegación por estado (`view`) en el shell de `App()`.
 - **Estilo:** 100% inline styles (objetos `style={{...}}`), sin CSS externo salvo `src/index.css` (reset mínimo). Paleta de colores en objetos `DARK_THEME`/`LIGHT_THEME` mezclados a un objeto mutable `COLORS` vía `Object.assign` en cada render — **patrón importante**: cualquier estilo que dependa de color debe leer `COLORS.x` en el momento del render, nunca cachearlo en una constante a nivel de módulo (excepción: `inputStyle()` es una función, no un objeto, precisamente por este motivo).
 - **Fuentes:** Space Grotesk (display), Inter (body), JetBrains Mono (números/datos), cargadas por `<link>` inyectado en JS al importar el módulo.
 - **Backend:** Supabase (Postgres + Auth), acceso directo desde el cliente vía `@supabase/supabase-js`, sin backend propio ni Edge Functions. Todas las reglas de acceso viven en Row Level Security (RLS) de Postgres.
@@ -40,32 +40,25 @@ Excepciones deliberadas a "guardar en cada cambio":
 
 | Tabla | ¿Existe en la BD real? |
 |---|---|
-| `profiles` | ✅ Sí (con `role`, `disabled`, `monthly_income`) |
+| `profiles` | ✅ Sí (con `role`, `disabled`, `monthly_income`, `account_size`) |
 | `goals` | ✅ Sí (con campos de meta financiera) |
 | `incomes` | ✅ Sí |
 | `custom_categories` | ✅ Sí |
-| `tasks` | ❌ **NO** |
-| `expenses` | ❌ **NO** |
-| `habits` | ❌ **NO** |
-| `products` | ❌ **NO** |
-| `activities` | ❌ **NO** |
-| `activity_completions` | ❌ **NO** |
-| `journals` | ❌ **NO** |
-| `trades` | ❌ **NO** |
-| `profiles.account_size` (columna) | ❌ **NO** |
+| `tasks` | ✅ Sí |
+| `expenses` | ✅ Sí |
+| `habits` | ✅ Sí |
+| `products` | ✅ Sí |
+| `activities` | ✅ Sí |
+| `activity_completions` | ✅ Sí |
+| `journals` | ✅ Sí |
+| `trades` | ✅ Sí |
+| `egresos` | ❌ **NO** — tabla nueva de esta sesión, ver aviso abajo |
 
-**⚠️ ACCIÓN PENDIENTE CRÍTICA:** el archivo `supabase/full_persistence.sql` (que crea las 8 tablas faltantes + la columna `account_size`) fue entregado al usuario pero **no se ha confirmado que lo haya ejecutado**. Hasta que corra ese SQL, Tareas, Gastos, Hábitos, Productos, Rutina y Trading fallarán silenciosamente al guardar (verán errores `PGRST205 relation does not exist` en la consola del navegador) y esas secciones se comportarán como si estuvieran siempre vacías. **Primer paso al retomar: confirmar/pedir que corra `supabase/full_persistence.sql`.**
+**⚠️ ACCIÓN PENDIENTE:** el módulo de Egresos (código ya escrito en `App.jsx`, ver §6) depende de la tabla `egresos`, que **todavía no existe en la base real**. Hasta que se corra el SQL, la pestaña "Egresos" de Ingresos y saldos fallará al guardar (`PGRST205`). Correr `supabase/schema.sql` completo en el SQL Editor de Supabase — es idempotente (usa `if not exists` en todo), así que en una base que ya tiene el resto del esquema solo creará la tabla `egresos` nueva; no duplica ni rompe nada existente.
 
-### Archivos SQL en el repo (`supabase/*.sql`) — orden histórico real
+### Archivo SQL en el repo
 
-1. `profiles.sql` — tabla `profiles` (id, email, role, disabled) + trigger que autopromueve a `admin` al correo `juaneschaverra15@gmail.com` al registrarse + función `is_admin()` (evita recursión RLS).
-2. `incomes_and_goals.sql` — tablas `goals` (con `goal_type`, `financial_target`, `financial_start_date`) e `incomes`.
-3. `monthly_income.sql` — `alter table profiles add column monthly_income`.
-4. `custom_categories.sql` — tabla `custom_categories`.
-5. `full_persistence.sql` — **el que falta correr**: `tasks`, `expenses`, `habits`, `products`, `activities`, `activity_completions`, `journals`, `trades`, + columna `profiles.account_size`.
-
-### ⚠️ Deuda técnica: `supabase/schema.sql` está OBSOLETO
-Es el primer borrador especulativo (escrito antes de que existieran Ingresos/metas financieras/categorías personalizadas). Su tabla `goals` NO tiene los campos financieros y quedó redundante con `incomes_and_goals.sql`. **Nunca se ejecutó contra la base real.** Recomendación para la próxima sesión: **borrarlo** y consolidar todo en un único archivo canónico (ver §7 Próximos pasos) para que quien retome no se confunda sobre cuál es "el" schema.
+Ya no hay migraciones fragmentadas: todo vive en **`supabase/schema.sql`**, un único archivo canónico e idempotente (safe de correr repetidas veces) que refleja el snapshot completo del esquema — `profiles` (+ trigger de auto-registro + `is_admin()`), `goals`, `incomes`, `egresos`, `custom_categories`, `tasks`, `expenses`, `habits`, `products`, `activities`, `activity_completions`, `journals`, `trades`. Los archivos previos (`profiles.sql`, `incomes_and_goals.sql`, `monthly_income.sql`, `custom_categories.sql`, `full_persistence.sql`, y el `schema.sql` obsoleto original con la tabla `user_settings` nunca usada) fueron fusionados en este único archivo y borrados del repo.
 
 ### Seguridad (RLS)
 Todas las tablas tienen `enable row level security` + policy `for all using (auth.uid() = user_id) with check (auth.uid() = user_id)` (mismo nombre de policy `"own rows"` en todas). Excepción: `profiles` tiene policies separadas para select/update/insert (`select own or admin`, `update own or admin`, `insert own`) porque los admins necesitan leer todos los perfiles (para el panel de Usuarios) sin poder tocar los datos financieros de nadie más.
@@ -103,16 +96,17 @@ Gates de render en `App()` (en este orden): `!isSupabaseConfigured` → `authLoa
 ## 6. Funcionalidades implementadas, sección por sección
 
 ### Resumen
-Dashboard general: gastos del mes, tareas completadas hoy, productos ganadores, racha de hábitos más larga (calculada real, ya no hardcodeada), gráfico de gastos por día (Recharts).
+Dashboard general: gastos del mes, tareas completadas hoy, productos ganadores, racha de hábitos más larga (calculada real, ya no hardcodeada), gráfico de gastos por día (Recharts, cargado de forma perezosa — ver §8).
 
 ### Gastos
 - Categorías fijas (10, con ícono+color de `CATEGORY_META`) + **categorías personalizadas** (nombre+color libre, tabla `custom_categories`, ícono genérico `Tag`).
 - Tarjeta "Ingreso mensual" configurable manualmente (no calculado de Ingresos reales — decisión explícita del usuario) con barra de presupuesto (gastado vs. disponible, se pone coral si te pasas).
 - CRUD completo de gastos por categoría (`CategoryCalendar`) con calendario mensual.
 
-### Ingresos y saldos (nueva, construida en esta sesión)
-- Ingresos totales, saldo actual (= ingresos, sin egresos todavía — diseñado para poder restar egresos después), total registros, ingresos del mes, ingresos de hoy.
-- CRUD completo con validación (monto > 0, concepto obligatorio), confirmación inline antes de eliminar, mensajes de éxito/error, estados vacío/carga.
+### Ingresos y saldos
+- Tabs "Ingresos" / "Egresos" (componente `MOVEMENT_KIND_META`, mismo patrón de tabs que Tareas) sobre las mismas tarjetas de estadísticas: ingresos totales, egresos totales, **saldo actual = ingresos − egresos** (ya no es un placeholder "próximamente"), ingresos del mes, egresos del mes.
+- CRUD completo para ambos tipos (tablas `incomes` y `egresos`, mismas columnas: `amount`, `concept`, `category`, `note`, y `income_date`/`expense_date` respectivamente) con validación (monto > 0, concepto obligatorio), confirmación inline antes de eliminar, mensajes de éxito/error, estados vacío/carga.
+- **Pendiente correr SQL** para la tabla `egresos` — ver aviso en §3.
 
 ### Metas
 - 4 timeframes (diario/semanal/mensual/trimestral), CRUD completo persistido.
@@ -139,7 +133,7 @@ Lista de perfiles, activar/desactivar cuentas.
 ### Móvil / responsive
 - `useIsMobile()` hook (breakpoint 768px) usado en todos los grids de 2 columnas para colapsar a 1.
 - Sidebar → topbar + drawer lateral en móvil.
-- Toggle de tema (claro/oscuro, componente `AppleToggle` estilo iOS) presente tanto en el topbar de escritorio (con selector de idioma decorativo y nombre/email del usuario) como junto al menú hamburguesa en móvil, ambos con íconos sol/luna identificando la función.
+- Toggle de tema (claro/oscuro, componente `AppleToggle` estilo iOS) presente tanto en el topbar de escritorio (con nombre/email del usuario) como junto al menú hamburguesa en móvil, ambos con íconos sol/luna identificando la función. El selector de idioma decorativo que existía antes en el topbar de escritorio **fue retirado** (no traducía nada realmente — ver §8).
 
 ---
 
@@ -163,31 +157,28 @@ No hay ninguna otra variable de entorno ni secreto en el proyecto. El token pers
 - **Paleta de colores validada con el skill `dataviz`:** oro/teal/coral/violeta, calculados y verificados con `validate_palette.js` (contraste, daltonismo) para modo oscuro y claro por separado — no son colores "a ojo". Documentados en el comment-header de `App.jsx` líneas ~14-29.
 - **Ingreso mensual (Gastos) es MANUAL, no automático:** decisión explícita del usuario — es un valor tipo "sueldo esperado" distinto de los ingresos reales transaccionales de "Ingresos y saldos". Preguntar antes de "arreglar" esto asumiendo que deberían ser lo mismo.
 - **Meta financiera calcula progreso en vivo, nunca lo guarda:** para evitar inconsistencias/duplicados (requisito explícito del usuario: "no sumar dos veces el mismo registro").
-- **Saldo actual = ingresos (sin egresos) por ahora:** diseñado deliberadamente para poder restar egresos en el futuro sin refactor.
+- **Saldo actual = ingresos − egresos:** implementado en esta sesión. La tabla `egresos` mirror exactamente la forma de `incomes` (mismas columnas salvo `income_date`→`expense_date`) para mantener el patrón de "una tabla por concepto, mismo shape". El componente `IngresosSaldos` quedó genérico por `kind` (`ingreso`/`egreso`) en vez de duplicar todo el JSX — un solo formulario/lista que cambia de tabla y color según la pestaña activa.
 - **No se creó una tabla `goals` separada para metas financieras:** se extendió la tabla `goals` existente con 3 columnas nuevas, por instrucción explícita del usuario.
+- **Selector de idioma retirado, no implementado:** era decorativo (cambiaba una etiqueta pero no traducía ninguna cadena de la app). Decisión: mejor quitarlo que dejar una UI que miente sobre lo que hace. Si se quiere i18n real en el futuro, es un proyecto aparte (extraer todas las cadenas hardcodeadas en español a un diccionario).
+- **Recharts se carga con `import()` dinámico, no import estático:** el hook `useRecharts()` (arriba de `App.jsx`) hace `import("recharts")` una sola vez (promesa cacheada a nivel de módulo) y los componentes `Resumen`/`Hábitos` renderizan un placeholder `ChartLoading` mientras tanto. Esto saca ~350KB del bundle inicial sin tocar la estructura de archivos del proyecto (seguía siendo un solo `App.jsx`) — se prefirió sobre extraer cada sección a su propio archivo con `React.lazy()`, que habría sido un refactor mucho más grande y riesgoso sin poder probarlo con login real.
 - **No hay CI/tests automatizados.** Verificación = `npm run build` + `npm run lint` (oxlint) + revisión manual de código línea por línea +, cuando fue posible, prueba visual en `preview_*` tools contra el servidor local. **El asistente nunca ha podido iniciar sesión real en la app** (política de seguridad: nunca se entran contraseñas), así que ningún flujo post-login fue verificado por click real del asistente — solo por inspección de código + build limpio + bundle de producción confirmado con las strings esperadas.
 
 ---
 
 ## 9. Errores pendientes / riesgos conocidos
 
-1. **`full_persistence.sql` posiblemente no corrido** (ver §3) — bloquea persistencia de 6 secciones enteras.
-2. **`supabase/schema.sql` obsoleto y confuso** — debería borrarse o marcarse claramente como histórico.
-3. **Bundle sin code-splitting:** ~870KB (Vite avisa "chunks larger than 500kB"). No es un bug, pero si el proyecto crece más vale la pena `React.lazy()` por sección.
-4. **Ningún flujo fue probado end-to-end por el asistente con login real** — todo lo construido en persistencia (~8 tablas, ~20 funciones CRUD) pasó build+lint+revisión de código pero no un click real de "guardar → recargar → sigue ahí" hecho por el asistente. Recomendado: el usuario debería probar cada sección una vez después de correr el SQL pendiente.
-5. **`git config` de commits usa nombre/email autodetectados** (`juanchaverra@MacBook-Air-de-Juan.local`) en vez de un nombre real configurado — cosmético, no rompe nada.
-6. Warnings de lint pre-existentes y no relacionados: `LineChart`/`Line` importados de `recharts` y nunca usados (línea 12 de `App.jsx`).
+1. **Falta correr `supabase/schema.sql` para la tabla `egresos`** (nueva, ver §3) — hasta entonces la pestaña "Egresos" fallará al guardar con `PGRST205`. El resto del esquema ya existe y `schema.sql` es idempotente, así que correrlo de nuevo es seguro.
+2. **Ningún flujo fue probado end-to-end por el asistente con login real** — ni la persistencia previa (~8 tablas) ni el nuevo módulo de Egresos, code-splitting de Recharts, o remoción del selector de idioma pasaron por un click real de "usar la app" hecho por el asistente (política de seguridad: nunca se entran contraseñas). Todo pasó build+lint+revisión de código línea por línea, incluyendo verificar a mano que cada columna escrita coincide con `schema.sql`. Recomendado: el usuario debería probar cada sección una vez, especialmente Ingresos y saldos con ambas pestañas, después de correr el SQL pendiente.
+3. **`git config` de commits usa nombre/email autodetectados** (`juanchaverra@MacBook-Air-de-Juan.local`) en vez de un nombre real configurado — cosmético, no rompe nada.
+4. **Bundle inicial sigue por encima de 500KB** (bajó de ~870KB a ~521KB tras sacar Recharts a un chunk separado cargado bajo demanda; el chunk de Recharts en sí también supera 500KB, así que Vite sigue avisando en el build). No es un bug — solo queda como posible optimización futura si el proyecto sigue creciendo (ej. tree-shaking más agresivo de `lucide-react`, o extraer más secciones a módulos separados).
 
 ---
 
 ## 10. Próximos pasos sugeridos (no empezados)
 
-- Confirmar que `full_persistence.sql` se corrió; si no, correrlo y verificar cada sección migrada.
-- Consolidar los 6 archivos `.sql` en uno solo canónico y borrar `schema.sql`.
-- Módulo de egresos para completar `saldo = ingresos - egresos` (mencionado como "próximamente" en la UI de Ingresos y saldos).
-- Decidir si el selector de idioma en el topbar (actualmente decorativo, no traduce nada) se implementa de verdad o se retira.
-- Code-splitting por sección si el bundle sigue creciendo.
-- Considerar mover las funciones CRUD de `App()` (que ya son ~25 funciones) a un hook custom o módulo aparte (`useProgoData.js`) si `App.jsx` sigue creciendo — hoy funciona pero el archivo es monolítico (2940 líneas).
+- Correr `supabase/schema.sql` en Supabase para crear la tabla `egresos` y luego probar la pestaña "Egresos" en Ingresos y saldos (guardar → recargar → sigue ahí).
+- Considerar mover las funciones CRUD de `App()` (que ya son ~28 funciones) a un hook custom o módulo aparte (`useProgoData.js`) si `App.jsx` sigue creciendo — hoy funciona pero el archivo es monolítico (~2950 líneas).
+- Si se decide invertir en internacionalización real (el selector de idioma se retiró por decorativo, ver §8), sería un proyecto aparte: extraer todas las cadenas hardcodeadas en español a un diccionario.
 
 ---
 
