@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { supabase, isSupabaseConfigured } from "./supabaseClient";
+import { supabase, isSupabaseConfigured, setRememberMe } from "./supabaseClient";
 import {
   LayoutGrid, Wallet, Target, CheckSquare, Flame, Package,
   Plus, Trash2, ChevronRight, TrendingUp, TrendingDown, Coffee,
@@ -2389,6 +2389,7 @@ function AuthScreen() {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -2400,6 +2401,7 @@ function AuthScreen() {
     setError(""); setNotice("");
     if (!email.trim() || !password) { setError("Ingresa tu correo y contraseña."); return; }
     setLoading(true);
+    setRememberMe(remember);
     if (mode === "login") {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) setError(error.message);
@@ -2428,6 +2430,11 @@ function AuthScreen() {
         <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@correo.com" style={inputStyle()} autoComplete="email" />
         <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Contraseña</label>
         <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={inputStyle()} autoComplete={mode === "login" ? "current-password" : "new-password"} />
+
+        <label style={{ ...fontBody, display: "flex", alignItems: "center", gap: 8, color: COLORS.muted, fontSize: 13, margin: "-4px 0 16px", cursor: "pointer" }}>
+          <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} style={{ width: 16, height: 16, accentColor: COLORS.teal, cursor: "pointer" }} />
+          Mantener sesión iniciada en este dispositivo
+        </label>
 
         {error && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 12.5, margin: "0 0 12px" }}>{error}</p>}
         {notice && <p style={{ ...fontBody, color: COLORS.teal, fontSize: 12.5, margin: "0 0 12px" }}>{notice}</p>}
@@ -3019,39 +3026,6 @@ export default function App() {
               </div>
             </div>
           )}
-
-          <div style={{
-            position: "fixed", left: 14, right: 14, bottom: "calc(14px + env(safe-area-inset-bottom, 0px))",
-            zIndex: 50, display: "flex", justifyContent: "space-between",
-            background: COLORS.card + "d9", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-            border: `1px solid ${COLORS.border}`, borderRadius: 28,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.28)", padding: 6,
-          }}>
-            {bottomTabs.map(item => {
-              const Icon = item.icon;
-              const active = view === item.key;
-              return (
-                <button key={item.key} onClick={() => selectView(item.key)} style={{
-                  flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
-                  background: active ? COLORS.elevated : "transparent", borderRadius: 20,
-                  border: "none", cursor: "pointer", padding: "7px 4px",
-                  color: active ? COLORS.paper : COLORS.muted,
-                }}>
-                  <Icon size={21} strokeWidth={active ? 2.2 : 1.8} />
-                  <span style={{ ...fontBody, fontSize: 9.5, fontWeight: active ? 700 : 500 }}>{BOTTOM_TAB_LABELS[item.key]}</span>
-                </button>
-              );
-            })}
-            <button onClick={() => setNavOpen(true)} style={{
-              flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
-              background: moreActive ? COLORS.elevated : "transparent", borderRadius: 20,
-              border: "none", cursor: "pointer", padding: "7px 4px",
-              color: moreActive ? COLORS.paper : COLORS.muted,
-            }}>
-              <MoreHorizontal size={21} strokeWidth={moreActive ? 2.2 : 1.8} />
-              <span style={{ ...fontBody, fontSize: 9.5, fontWeight: moreActive ? 700 : 500 }}>Más</span>
-            </button>
-          </div>
         </>
       ) : (
         <div style={{ width: 240, background: COLORS.card, borderRight: `1px solid ${COLORS.border}`, padding: "24px 16px", display: "flex", flexDirection: "column", flexShrink: 0, overflowY: "auto" }}>
@@ -3064,7 +3038,7 @@ export default function App() {
       <div style={{
         flex: 1, minWidth: 0, overflowY: "auto", overscrollBehaviorY: "contain",
         ...(isMobile
-          ? { padding: 16, paddingBottom: "calc(88px + env(safe-area-inset-bottom, 0px))" }
+          ? { padding: 16 }
           : { padding: "28px 32px" }),
       }}>
         {!isMobile && (
@@ -3094,6 +3068,41 @@ export default function App() {
         {view === "productos" && <Productos products={products} setProducts={setProducts} insertProductRow={insertProductRow} patchProductRow={patchProductRow} deleteProductRow={deleteProductRow} />}
         {view === "usuarios" && isAdmin && <Usuarios myId={session.user.id} />}
       </div>
+
+      {isMobile && (
+        <div style={{
+          flexShrink: 0, display: "flex", justifyContent: "space-between",
+          margin: `0 14px calc(14px + env(safe-area-inset-bottom, 0px)) 14px`,
+          background: COLORS.card + "d9", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+          border: `1px solid ${COLORS.border}`, borderRadius: 28,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.28)", padding: 6,
+        }}>
+          {bottomTabs.map(item => {
+            const Icon = item.icon;
+            const active = view === item.key;
+            return (
+              <button key={item.key} onClick={() => selectView(item.key)} style={{
+                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+                background: active ? COLORS.elevated : "transparent", borderRadius: 20,
+                border: "none", cursor: "pointer", padding: "7px 4px",
+                color: active ? COLORS.paper : COLORS.muted,
+              }}>
+                <Icon size={21} strokeWidth={active ? 2.2 : 1.8} />
+                <span style={{ ...fontBody, fontSize: 9.5, fontWeight: active ? 700 : 500 }}>{BOTTOM_TAB_LABELS[item.key]}</span>
+              </button>
+            );
+          })}
+          <button onClick={() => setNavOpen(true)} style={{
+            flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+            background: moreActive ? COLORS.elevated : "transparent", borderRadius: 20,
+            border: "none", cursor: "pointer", padding: "7px 4px",
+            color: moreActive ? COLORS.paper : COLORS.muted,
+          }}>
+            <MoreHorizontal size={21} strokeWidth={moreActive ? 2.2 : 1.8} />
+            <span style={{ ...fontBody, fontSize: 9.5, fontWeight: moreActive ? 700 : 500 }}>Más</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
