@@ -292,7 +292,7 @@ function Resumen({ expenses, tasks, habits, products }) {
    GASTOS
 --------------------------------------------------------- */
 
-function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, customCategories, addCustomCategory }) {
+function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, customCategories, addCustomCategory, insertExpenseRow, patchExpenseRow, deleteExpenseRow }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [editingIncome, setEditingIncome] = useState(false);
   const [incomeInput, setIncomeInput] = useState("");
@@ -345,7 +345,7 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
   }
 
   if (selectedCategory) {
-    return <CategoryCalendar category={selectedCategory} expenses={expenses} setExpenses={setExpenses} customCategories={customCategories} onBack={() => setSelectedCategory(null)} />;
+    return <CategoryCalendar category={selectedCategory} expenses={expenses} setExpenses={setExpenses} customCategories={customCategories} insertExpenseRow={insertExpenseRow} patchExpenseRow={patchExpenseRow} deleteExpenseRow={deleteExpenseRow} onBack={() => setSelectedCategory(null)} />;
   }
 
   return (
@@ -468,7 +468,7 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
   );
 }
 
-function CategoryCalendar({ category, expenses, setExpenses, customCategories, onBack }) {
+function CategoryCalendar({ category, expenses, setExpenses, customCategories, insertExpenseRow, patchExpenseRow, deleteExpenseRow, onBack }) {
   const meta = getCategoryMeta(category, customCategories);
   const Icon = meta.icon;
   const [selectedDate, setSelectedDate] = useState(null);
@@ -493,13 +493,16 @@ function CategoryCalendar({ category, expenses, setExpenses, customCategories, o
   const dayExpenses = selectedDate ? catExpenses.filter(e => e.date === selectedDate) : [];
   const dayTotal = dayExpenses.reduce((a, e) => a + e.amount, 0);
 
-  function addExpense() {
+  async function addExpense() {
     if (!selectedDate || !form.description || !form.amount) return;
+    const amount = Number(form.amount);
     if (editingId) {
-      setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, date: selectedDate, description: form.description, amount: Number(form.amount) } : e));
+      setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, date: selectedDate, description: form.description, amount } : e));
+      patchExpenseRow(editingId, { date: selectedDate, description: form.description, amount });
       setEditingId(null);
     } else {
-      setExpenses(prev => [{ id: Date.now(), date: selectedDate, category, description: form.description, amount: Number(form.amount) }, ...prev]);
+      const created = await insertExpenseRow({ date: selectedDate, category, description: form.description, amount });
+      if (created) setExpenses(prev => [created, ...prev]);
     }
     setForm({ description: "", amount: "" });
   }
@@ -509,7 +512,7 @@ function CategoryCalendar({ category, expenses, setExpenses, customCategories, o
     setForm({ description: e.description, amount: String(e.amount) });
   }
   function cancelEdit() { setEditingId(null); setForm({ description: "", amount: "" }); }
-  function removeExpense(id) { setExpenses(prev => prev.filter(e => e.id !== id)); if (editingId === id) cancelEdit(); }
+  function removeExpense(id) { setExpenses(prev => prev.filter(e => e.id !== id)); deleteExpenseRow(id); if (editingId === id) cancelEdit(); }
 
   return (
     <div>
@@ -1023,7 +1026,7 @@ const TASK_TIMEFRAME_META = {
   mensual: { label: "Mensual", subtitle: "completadas este mes", get color() { return COLORS.violet; } },
 };
 
-function Tareas({ tasks, setTasks }) {
+function Tareas({ tasks, setTasks, insertTaskRow, patchTaskRow, deleteTaskRow }) {
   const [tab, setTab] = useState("diario");
   const [newTask, setNewTask] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -1031,16 +1034,28 @@ function Tareas({ tasks, setTasks }) {
   const list = tasks[tab];
   const done = list.filter(t => t.done).length;
 
-  function toggle(id) { setTasks(prev => ({ ...prev, [tab]: prev[tab].map(t => t.id === id ? { ...t, done: !t.done } : t) })); }
-  function remove(id) { setTasks(prev => ({ ...prev, [tab]: prev[tab].filter(t => t.id !== id) })); if (editingId === id) cancelEdit(); }
+  function toggle(id) {
+    const t = list.find(x => x.id === id);
+    if (!t) return;
+    const done = !t.done;
+    setTasks(prev => ({ ...prev, [tab]: prev[tab].map(x => x.id === id ? { ...x, done } : x) }));
+    patchTaskRow(id, { done });
+  }
+  function remove(id) {
+    setTasks(prev => ({ ...prev, [tab]: prev[tab].filter(t => t.id !== id) }));
+    deleteTaskRow(id);
+    if (editingId === id) cancelEdit();
+  }
   function startEdit(t) { setEditingId(t.id); setNewTask(t.title); }
   function cancelEdit() { setEditingId(null); setNewTask(""); }
-  function add() {
+  async function add() {
     if (!newTask.trim()) return;
     if (editingId) {
       setTasks(prev => ({ ...prev, [tab]: prev[tab].map(t => t.id === editingId ? { ...t, title: newTask } : t) }));
+      patchTaskRow(editingId, { title: newTask });
     } else {
-      setTasks(prev => ({ ...prev, [tab]: [...prev[tab], { id: Date.now(), title: newTask, done: false }] }));
+      const created = await insertTaskRow(tab, newTask);
+      if (created) setTasks(prev => ({ ...prev, [tab]: [...prev[tab], created] }));
     }
     cancelEdit();
   }
@@ -1104,7 +1119,7 @@ function Tareas({ tasks, setTasks }) {
 
 const HABIT_TONE_KEYS = ["gold", "teal", "coral", "violet"];
 
-function Habitos({ habits, setHabits }) {
+function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabitRow }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const [newHabit, setNewHabit] = useState({ name: "", toneKey: "gold" });
   const [editingId, setEditingId] = useState(null);
@@ -1112,22 +1127,26 @@ function Habitos({ habits, setHabits }) {
   const isMobile = useIsMobile();
 
   function toggleDate(habitId, ds) {
-    setHabits(prev => prev.map(h => h.id === habitId
-      ? { ...h, history: { ...h.history, [ds]: h.history[ds] ? 0 : 1 } }
-      : h));
+    const h = habits.find(x => x.id === habitId);
+    if (!h) return;
+    const newHistory = { ...h.history, [ds]: h.history[ds] ? 0 : 1 };
+    setHabits(prev => prev.map(x => x.id === habitId ? { ...x, history: newHistory } : x));
+    patchHabitRow(habitId, { history: newHistory });
   }
   function startEditHabit(h) { setEditingId(h.id); setNewHabit({ name: h.name, toneKey: h.toneKey }); }
   function cancelEdit() { setEditingId(null); setNewHabit({ name: "", toneKey: "gold" }); }
-  function addHabit() {
+  async function addHabit() {
     if (!newHabit.name.trim()) return;
     if (editingId) {
       setHabits(prev => prev.map(h => h.id === editingId ? { ...h, name: newHabit.name.trim(), toneKey: newHabit.toneKey } : h));
+      patchHabitRow(editingId, { name: newHabit.name.trim(), toneKey: newHabit.toneKey });
     } else {
-      setHabits(prev => [...prev, { id: Date.now(), name: newHabit.name.trim(), toneKey: newHabit.toneKey, history: {} }]);
+      const created = await insertHabitRow(newHabit.name.trim(), newHabit.toneKey);
+      if (created) setHabits(prev => [...prev, created]);
     }
     cancelEdit();
   }
-  function removeHabit(id) { setHabits(prev => prev.filter(h => h.id !== id)); if (editingId === id) cancelEdit(); }
+  function removeHabit(id) { setHabits(prev => prev.filter(h => h.id !== id)); deleteHabitRow(id); if (editingId === id) cancelEdit(); }
 
   function streakUpTo(history, dayCount) {
     let s = 0;
@@ -1305,38 +1324,37 @@ function Habitos({ habits, setHabits }) {
    PRODUCTOS TESTEADOS
 --------------------------------------------------------- */
 
-function Productos({ products, setProducts }) {
+function Productos({ products, setProducts, insertProductRow, patchProductRow, deleteProductRow }) {
   const [form, setForm] = useState({ name: "", testDate: `${CAL_YEAR}-${String(CAL_MONTH + 1).padStart(2, "0")}-01`, investment: "", sales: "", notes: "" });
   const [editingId, setEditingId] = useState(null);
 
   function cycleStatus(id) {
     const order = ["En prueba", "Ganador", "Perdedor"];
-    setProducts(prev => prev.map(p => p.id === id
-      ? { ...p, status: order[(order.indexOf(p.status) + 1) % order.length] }
-      : p));
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    const status = order[(order.indexOf(p.status) + 1) % order.length];
+    setProducts(prev => prev.map(x => x.id === id ? { ...x, status } : x));
+    patchProductRow(id, { status });
   }
   function startEditProduct(p) {
     setEditingId(p.id);
     setForm({ name: p.name, testDate: p.testDate, investment: String(p.investment), sales: String(p.sales), notes: p.notes });
   }
   function cancelEdit() { setEditingId(null); setForm({ name: "", testDate: `${CAL_YEAR}-${String(CAL_MONTH + 1).padStart(2, "0")}-01`, investment: "", sales: "", notes: "" }); }
-  function addProduct() {
+  async function addProduct() {
     if (!form.name.trim()) return;
+    const investment = Number(form.investment) || 0;
+    const sales = Number(form.sales) || 0;
     if (editingId) {
-      setProducts(prev => prev.map(p => p.id === editingId ? {
-        ...p, name: form.name.trim(), testDate: form.testDate,
-        investment: Number(form.investment) || 0, sales: Number(form.sales) || 0, notes: form.notes,
-      } : p));
+      setProducts(prev => prev.map(p => p.id === editingId ? { ...p, name: form.name.trim(), testDate: form.testDate, investment, sales, notes: form.notes } : p));
+      patchProductRow(editingId, { name: form.name.trim(), testDate: form.testDate, investment, sales, notes: form.notes });
     } else {
-      setProducts(prev => [...prev, {
-        id: Date.now(), name: form.name.trim(), testDate: form.testDate,
-        investment: Number(form.investment) || 0, sales: Number(form.sales) || 0,
-        status: "En prueba", notes: form.notes,
-      }]);
+      const created = await insertProductRow({ name: form.name.trim(), testDate: form.testDate, investment, sales, notes: form.notes });
+      if (created) setProducts(prev => [...prev, created]);
     }
     cancelEdit();
   }
-  function removeProduct(id) { setProducts(prev => prev.filter(p => p.id !== id)); if (editingId === id) cancelEdit(); }
+  function removeProduct(id) { setProducts(prev => prev.filter(p => p.id !== id)); deleteProductRow(id); if (editingId === id) cancelEdit(); }
 
   return (
     <div>
@@ -1468,7 +1486,7 @@ function fmtDuration(min) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-function Rutina({ activities, setActivities, completions, setCompletions, journals, setJournals, tasks, setTasks, habits, setHabits, goals, setGoals, patchGoalRow }) {
+function Rutina({ activities, setActivities, completions, setCompletions, journals, setJournals, tasks, setTasks, habits, setHabits, goals, setGoals, patchGoalRow, patchTaskRow, patchHabitRow, insertActivityRow, patchActivityRow, deleteActivityRow, toggleCompletionRow, patchJournalRow }) {
   const todayISO = isoDateLocal(new Date());
   const [viewMode, setViewMode] = useState("dia");
   const [selectedDate, setSelectedDate] = useState(todayISO);
@@ -1477,6 +1495,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
   const [nowMin, setNowMin] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); });
   const movedRef = useRef(false);
   const dayTrackRef = useRef(null);
+  const journalSaveTimer = useRef(null);
 
   useEffect(() => {
     const t = setInterval(() => { const n = new Date(); setNowMin(n.getHours() * 60 + n.getMinutes()); }, 30000);
@@ -1508,8 +1527,20 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
   }
   function toggleActivityDone(a, ds) {
     if (a.source) {
-      if (a.source.kind === "tarea") { setTasks(prev => ({ ...prev, diario: prev.diario.map(t => t.id === a.source.id ? { ...t, done: !t.done } : t) })); return; }
-      if (a.source.kind === "habito") { setHabits(prev => prev.map(h => h.id === a.source.id ? { ...h, history: { ...h.history, [ds]: h.history[ds] ? 0 : 1 } } : h)); return; }
+      if (a.source.kind === "tarea") {
+        const t = tasks.diario.find(x => x.id === a.source.id);
+        const done = !t?.done;
+        setTasks(prev => ({ ...prev, diario: prev.diario.map(x => x.id === a.source.id ? { ...x, done } : x) }));
+        patchTaskRow(a.source.id, { done });
+        return;
+      }
+      if (a.source.kind === "habito") {
+        const h = habits.find(x => x.id === a.source.id);
+        const newHistory = { ...h?.history, [ds]: h?.history[ds] ? 0 : 1 };
+        setHabits(prev => prev.map(x => x.id === a.source.id ? { ...x, history: newHistory } : x));
+        patchHabitRow(a.source.id, { history: newHistory });
+        return;
+      }
       if (a.source.kind === "meta") {
         const g = goals.diario.find(x => x.id === a.source.id);
         const done = !g?.done;
@@ -1518,7 +1549,9 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
         return;
       }
     }
-    setCompletions(prev => ({ ...prev, [`${a.id}|${ds}`]: !prev[`${a.id}|${ds}`] }));
+    const done = !completions[`${a.id}|${ds}`];
+    setCompletions(prev => ({ ...prev, [`${a.id}|${ds}`]: done }));
+    toggleCompletionRow(a.id, ds, done);
   }
   function isScheduledToday(kind, id) {
     return activities.some(a => a.source?.kind === kind && a.source?.id === id && occursOn(a, todayISO));
@@ -1532,11 +1565,16 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
     const rect = e.currentTarget.getBoundingClientRect();
     openNew(ds, dayStart + (e.clientY - rect.top) / px * 60);
   }
-  function saveEditor() {
+  async function saveEditor() {
     if (!editor.title.trim() || editor.end <= editor.start) return;
     const data = { date: editor.date, title: editor.title.trim(), start: editor.start, end: editor.end, type: editor.type, customColor: editor.customColor, category: editor.category, description: editor.description, repeat: editor.repeat };
-    if (editor.mode === "new") setActivities(prev => [...prev, { id: Date.now(), ...data }]);
-    else setActivities(prev => prev.map(a => a.id === editor.id ? { ...a, ...data } : a));
+    if (editor.mode === "new") {
+      const created = await insertActivityRow(data);
+      if (created) setActivities(prev => [...prev, created]);
+    } else {
+      setActivities(prev => prev.map(a => a.id === editor.id ? { ...a, ...data } : a));
+      patchActivityRow(editor.id, data);
+    }
     setEditor(null);
   }
 
@@ -1544,7 +1582,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
   function startPanelDrag(e, item, kind) {
     e.preventDefault();
     const move = ev => setGhost({ x: ev.clientX, y: ev.clientY, label: item.title, tone: SOURCE_META[kind].tone });
-    const up = ev => {
+    const up = async ev => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       setGhost(null);
@@ -1552,10 +1590,12 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
       if (!rect || ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return;
       const min = snapToGrid(dayStart + (ev.clientY - rect.top) / PX_HOUR_DAY * 60);
       const start = Math.max(dayStart, Math.min(dayEnd - 45, min));
-      setActivities(prev => [...prev, {
-        id: Date.now(), date: todayISO, title: item.title, start, end: Math.min(dayEnd, start + 45),
+      const data = {
+        date: todayISO, title: item.title, start, end: Math.min(dayEnd, start + 45),
         type: SOURCE_META[kind].defaultType, category: "", description: "", repeat: "no", source: { kind, id: item.id },
-      }]);
+      };
+      const created = await insertActivityRow(data);
+      if (created) setActivities(prev => [...prev, created]);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -1572,6 +1612,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
     const orig = { start: a.start, end: a.end, date: a.date };
     const dur = a.end - a.start;
     movedRef.current = false;
+    let lastPatch = null;
     const move = ev => {
       const dy = ev.clientY - startY, dx = ev.clientX - startX;
       if (Math.abs(dy) > 4 || Math.abs(dx) > 4) movedRef.current = true;
@@ -1579,19 +1620,25 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
       const deltaMin = snapToGrid(dy / px * 60);
       setActivities(prev => prev.map(x => {
         if (x.id !== a.id) return x;
-        if (dragMode === "resize") return { ...x, end: Math.min(dayEnd, Math.max(orig.start + SNAP_MIN, orig.end + deltaMin)) };
+        if (dragMode === "resize") {
+          const end = Math.min(dayEnd, Math.max(orig.start + SNAP_MIN, orig.end + deltaMin));
+          lastPatch = { end };
+          return { ...x, end };
+        }
         const start = Math.max(dayStart, Math.min(dayEnd - dur, orig.start + deltaMin));
         let date = orig.date;
         if (colInfo) {
           const idx = Math.max(0, Math.min(6, colInfo.index + Math.round(dx / colInfo.width)));
           date = colInfo.week[idx];
         }
+        lastPatch = { start, end: start + dur, date };
         return { ...x, start, end: start + dur, date };
       }));
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      if (lastPatch) patchActivityRow(a.id, lastPatch);
       setTimeout(() => { movedRef.current = false; }, 0);
     };
     window.addEventListener("pointermove", move);
@@ -1677,7 +1724,12 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
   const { placed: dayPlaced, lanes: dayLanes } = layoutLanes(dayActs);
   const doneCount = dayActs.filter(a => isDone(a, selectedDate)).length;
   const journal = journals[selectedDate] || {};
-  const setJ = (field, value) => setJournals(prev => ({ ...prev, [selectedDate]: { ...(prev[selectedDate] || {}), [field]: value } }));
+  const setJ = (field, value) => {
+    const updated = { ...(journals[selectedDate] || {}), [field]: value };
+    setJournals(prev => ({ ...prev, [selectedDate]: updated }));
+    clearTimeout(journalSaveTimer.current);
+    journalSaveTimer.current = setTimeout(() => patchJournalRow(selectedDate, updated), 600);
+  };
 
   // Composición del día: minutos programados por tipo de bloque + tiempo libre
   const typeMinutes = { enfoque: 0, operativo: 0, descanso: 0, movimiento: 0, otra: 0 };
@@ -1979,7 +2031,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
               <PrimaryButton onClick={saveEditor} accent={COLORS.teal}><Check size={16} /> Guardar</PrimaryButton>
               {editor.mode === "edit" && (
-                <button onClick={() => { setActivities(prev => prev.filter(a => a.id !== editor.id)); setEditor(null); }} style={{
+                <button onClick={() => { setActivities(prev => prev.filter(a => a.id !== editor.id)); deleteActivityRow(editor.id); setEditor(null); }} style={{
                   ...fontBody, display: "flex", alignItems: "center", gap: 6, background: "transparent",
                   border: `1px solid ${COLORS.coral}`, color: COLORS.coral, fontWeight: 600, fontSize: 14,
                   borderRadius: 10, padding: "10px 16px", cursor: "pointer",
@@ -2016,7 +2068,7 @@ function fmtPct(n) {
 }
 const ACCOUNT_PRESETS = [1000, 5000, 10000, 25000, 50000, 100000];
 
-function Trading({ trades, setTrades, accountSize, setAccountSize }) {
+function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTradeRow, patchTradeRow, deleteTradeRow }) {
   const [ym, setYm] = useState({ year: CAL_YEAR, month: CAL_MONTH });
   const [tab, setTab] = useState("pnl");
   const [modalDate, setModalDate] = useState(null);
@@ -2045,18 +2097,22 @@ function Trading({ trades, setTrades, accountSize, setAccountSize }) {
   const bestDay = dayEntries.reduce((m, [d, v]) => (!m || v > m[1]) ? [d, v] : m, null);
   const worstDay = dayEntries.reduce((m, [d, v]) => (!m || v < m[1]) ? [d, v] : m, null);
 
-  function addTrade() {
+  async function addTrade() {
     if (!form.symbol.trim() || form.pnl === "") return;
+    const symbol = form.symbol.trim().toUpperCase();
+    const pnl = Number(form.pnl);
     if (editingId) {
-      setTrades(prev => prev.map(t => t.id === editingId ? { ...t, symbol: form.symbol.trim().toUpperCase(), pnl: Number(form.pnl) } : t));
+      setTrades(prev => prev.map(t => t.id === editingId ? { ...t, symbol, pnl } : t));
+      patchTradeRow(editingId, { symbol, pnl });
     } else {
-      setTrades(prev => [...prev, { id: Date.now(), date: modalDate, symbol: form.symbol.trim().toUpperCase(), pnl: Number(form.pnl) }]);
+      const created = await insertTradeRow({ date: modalDate, symbol, pnl });
+      if (created) setTrades(prev => [...prev, created]);
     }
     cancelEditTrade();
   }
   function startEditTrade(t) { setEditingId(t.id); setForm({ symbol: t.symbol, pnl: String(t.pnl) }); }
   function cancelEditTrade() { setEditingId(null); setForm({ symbol: "", pnl: "" }); }
-  function removeTrade(id) { setTrades(prev => prev.filter(t => t.id !== id)); if (editingId === id) cancelEditTrade(); }
+  function removeTrade(id) { setTrades(prev => prev.filter(t => t.id !== id)); deleteTradeRow(id); if (editingId === id) cancelEditTrade(); }
 
   const modalTrades = modalDate ? trades.filter(t => t.date === modalDate).sort((a, b) => a.id - b.id) : [];
   const modalPnl = modalTrades.reduce((s, t) => s + t.pnl, 0);
@@ -2077,7 +2133,7 @@ function Trading({ trades, setTrades, accountSize, setAccountSize }) {
         <span style={{ ...fontBody, color: COLORS.muted, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>Tamaño de cuenta</span>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {ACCOUNT_PRESETS.map(p => (
-            <button key={p} onClick={() => setAccountSize(p)} style={{
+            <button key={p} onClick={() => updateAccountSize(p)} style={{
               ...fontMono, fontSize: 12.5, fontWeight: 600, padding: "7px 13px", borderRadius: 8, cursor: "pointer",
               border: `1px solid ${accountSize === p ? COLORS.teal : COLORS.border}`,
               background: accountSize === p ? COLORS.teal + "22" : "transparent",
@@ -2085,7 +2141,7 @@ function Trading({ trades, setTrades, accountSize, setAccountSize }) {
             }}>{p >= 1000 ? `${p / 1000}K` : p}</button>
           ))}
         </div>
-        <input type="number" value={accountSize} onChange={e => setAccountSize(Number(e.target.value) || 0)}
+        <input type="number" value={accountSize} onChange={e => updateAccountSize(Number(e.target.value) || 0)}
           placeholder="Personalizado" style={{ ...inputStyle(), marginBottom: 0, width: 140 }} />
       </div>
 
@@ -2431,23 +2487,55 @@ export default function App() {
     let cancelled = false;
     setFinanceLoading(true);
     (async () => {
-      const [goalsRes, incomesRes, catsRes] = await Promise.all([
+      const [goalsRes, incomesRes, catsRes, tasksRes, expensesRes, habitsRes, productsRes, activitiesRes, completionsRes, journalsRes, tradesRes] = await Promise.all([
         supabase.from("goals").select("*").order("id", { ascending: true }),
         supabase.from("incomes").select("*").order("income_date", { ascending: false }).order("id", { ascending: false }),
         supabase.from("custom_categories").select("*").order("id", { ascending: true }),
+        supabase.from("tasks").select("*").order("id", { ascending: true }),
+        supabase.from("expenses").select("*").order("date", { ascending: false }).order("id", { ascending: false }),
+        supabase.from("habits").select("*").order("id", { ascending: true }),
+        supabase.from("products").select("*").order("id", { ascending: true }),
+        supabase.from("activities").select("*").order("id", { ascending: true }),
+        supabase.from("activity_completions").select("*"),
+        supabase.from("journals").select("*"),
+        supabase.from("trades").select("*").order("date", { ascending: false }).order("id", { ascending: false }),
       ]);
       if (cancelled) return;
       if (!goalsRes.error) {
         const grouped = { diario: [], semanal: [], mensual: [], trimestral: [] };
         (goalsRes.data || []).forEach(row => { if (grouped[row.timeframe]) grouped[row.timeframe].push(rowToGoal(row)); });
         setGoals(grouped);
-      } else {
-        console.error("Error cargando metas:", goalsRes.error.message);
-      }
+      } else console.error("Error cargando metas:", goalsRes.error.message);
       if (!incomesRes.error) setIncomes(incomesRes.data || []);
       else console.error("Error cargando ingresos:", incomesRes.error.message);
       if (!catsRes.error) setCustomCategories((catsRes.data || []).map(r => ({ id: r.id, name: r.name, color: r.color })));
       else console.error("Error cargando categorías:", catsRes.error.message);
+      if (!tasksRes.error) {
+        const grouped = { diario: [], semanal: [], mensual: [] };
+        (tasksRes.data || []).forEach(row => { if (grouped[row.timeframe]) grouped[row.timeframe].push({ id: row.id, title: row.title, done: row.done }); });
+        setTasks(grouped);
+      } else console.error("Error cargando tareas:", tasksRes.error.message);
+      if (!expensesRes.error) setExpenses((expensesRes.data || []).map(r => ({ id: r.id, date: r.date, category: r.category, description: r.description, amount: Number(r.amount) })));
+      else console.error("Error cargando gastos:", expensesRes.error.message);
+      if (!habitsRes.error) setHabits((habitsRes.data || []).map(r => ({ id: r.id, name: r.name, toneKey: r.tone_key, history: r.history || {} })));
+      else console.error("Error cargando hábitos:", habitsRes.error.message);
+      if (!productsRes.error) setProducts((productsRes.data || []).map(r => ({ id: r.id, name: r.name, testDate: r.test_date, investment: Number(r.investment), sales: Number(r.sales), status: r.status, notes: r.notes })));
+      else console.error("Error cargando productos:", productsRes.error.message);
+      if (!activitiesRes.error) setActivities((activitiesRes.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, start: r.start_min, end: r.end_min, type: r.type, category: r.category, customColor: r.custom_color, description: r.description, repeat: r.repeat, source: r.source })));
+      else console.error("Error cargando actividades:", activitiesRes.error.message);
+      if (!completionsRes.error) {
+        const map = {};
+        (completionsRes.data || []).forEach(r => { map[`${r.activity_id}|${r.occurrence_date}`] = r.done; });
+        setCompletions(map);
+      } else console.error("Error cargando completados:", completionsRes.error.message);
+      if (!journalsRes.error) {
+        const map = {};
+        (journalsRes.data || []).forEach(r => { map[r.date] = { rating: r.rating, good: r.good, improve: r.improve, feeling: r.feeling, notes: r.notes }; });
+        setJournals(map);
+      } else console.error("Error cargando journals:", journalsRes.error.message);
+      if (!tradesRes.error) setTrades((tradesRes.data || []).map(r => ({ id: r.id, date: r.date, symbol: r.symbol, pnl: Number(r.pnl) })));
+      else console.error("Error cargando trades:", tradesRes.error.message);
+      if (profile.account_size) setAccountSize(Number(profile.account_size));
       setFinanceLoading(false);
     })();
     return () => { cancelled = true; };
@@ -2547,6 +2635,143 @@ export default function App() {
     const created = { id: data.id, name: data.name, color: data.color };
     setCustomCategories(prev => [...prev, created]);
     return { data: created };
+  }
+
+  // --- Persistencia de Tareas (tabla `tasks`) ---
+  async function insertTaskRow(timeframe, title) {
+    const { data, error } = await supabase.from("tasks").insert({ user_id: session.user.id, timeframe, title, done: false }).select().single();
+    if (error) { console.error("Error creando tarea:", error.message); return null; }
+    return { id: data.id, title: data.title, done: data.done };
+  }
+  async function patchTaskRow(id, patch) {
+    const { error } = await supabase.from("tasks").update(patch).eq("id", id);
+    if (error) console.error("Error actualizando tarea:", error.message);
+  }
+  async function deleteTaskRow(id) {
+    const { error } = await supabase.from("tasks").delete().eq("id", id);
+    if (error) console.error("Error eliminando tarea:", error.message);
+  }
+
+  // --- Persistencia de Gastos (tabla `expenses`) ---
+  async function insertExpenseRow(payload) {
+    const { data, error } = await supabase.from("expenses").insert({
+      user_id: session.user.id, date: payload.date, category: payload.category,
+      description: payload.description, amount: payload.amount,
+    }).select().single();
+    if (error) { console.error("Error creando gasto:", error.message); return null; }
+    return { id: data.id, date: data.date, category: data.category, description: data.description, amount: Number(data.amount) };
+  }
+  async function patchExpenseRow(id, patch) {
+    const { error } = await supabase.from("expenses").update(patch).eq("id", id);
+    if (error) console.error("Error actualizando gasto:", error.message);
+  }
+  async function deleteExpenseRow(id) {
+    const { error } = await supabase.from("expenses").delete().eq("id", id);
+    if (error) console.error("Error eliminando gasto:", error.message);
+  }
+
+  // --- Persistencia de Hábitos (tabla `habits`) ---
+  async function insertHabitRow(name, toneKey) {
+    const { data, error } = await supabase.from("habits").insert({ user_id: session.user.id, name, tone_key: toneKey, history: {} }).select().single();
+    if (error) { console.error("Error creando hábito:", error.message); return null; }
+    return { id: data.id, name: data.name, toneKey: data.tone_key, history: data.history || {} };
+  }
+  async function patchHabitRow(id, patch) {
+    const dbPatch = {};
+    if ("name" in patch) dbPatch.name = patch.name;
+    if ("toneKey" in patch) dbPatch.tone_key = patch.toneKey;
+    if ("history" in patch) dbPatch.history = patch.history;
+    const { error } = await supabase.from("habits").update(dbPatch).eq("id", id);
+    if (error) console.error("Error actualizando hábito:", error.message);
+  }
+  async function deleteHabitRow(id) {
+    const { error } = await supabase.from("habits").delete().eq("id", id);
+    if (error) console.error("Error eliminando hábito:", error.message);
+  }
+
+  // --- Persistencia de Productos testeados (tabla `products`) ---
+  async function insertProductRow(payload) {
+    const { data, error } = await supabase.from("products").insert({
+      user_id: session.user.id, name: payload.name, test_date: payload.testDate,
+      investment: payload.investment, sales: payload.sales, status: "En prueba", notes: payload.notes,
+    }).select().single();
+    if (error) { console.error("Error creando producto:", error.message); return null; }
+    return { id: data.id, name: data.name, testDate: data.test_date, investment: Number(data.investment), sales: Number(data.sales), status: data.status, notes: data.notes };
+  }
+  async function patchProductRow(id, patch) {
+    const dbPatch = {};
+    if ("name" in patch) dbPatch.name = patch.name;
+    if ("testDate" in patch) dbPatch.test_date = patch.testDate;
+    if ("investment" in patch) dbPatch.investment = patch.investment;
+    if ("sales" in patch) dbPatch.sales = patch.sales;
+    if ("status" in patch) dbPatch.status = patch.status;
+    if ("notes" in patch) dbPatch.notes = patch.notes;
+    const { error } = await supabase.from("products").update(dbPatch).eq("id", id);
+    if (error) console.error("Error actualizando producto:", error.message);
+  }
+  async function deleteProductRow(id) {
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) console.error("Error eliminando producto:", error.message);
+  }
+
+  // --- Persistencia de Rutina (tablas `activities`, `activity_completions`, `journals`) ---
+  async function insertActivityRow(payload) {
+    const { data, error } = await supabase.from("activities").insert({
+      user_id: session.user.id, date: payload.date, title: payload.title,
+      start_min: payload.start, end_min: payload.end, type: payload.type,
+      category: payload.category || "", custom_color: payload.customColor || null,
+      description: payload.description || "", repeat: payload.repeat || "no", source: payload.source || null,
+    }).select().single();
+    if (error) { console.error("Error creando actividad:", error.message); return null; }
+    return { id: data.id, date: data.date, title: data.title, start: data.start_min, end: data.end_min, type: data.type, category: data.category, customColor: data.custom_color, description: data.description, repeat: data.repeat, source: data.source };
+  }
+  async function patchActivityRow(id, patch) {
+    const dbPatch = {};
+    if ("date" in patch) dbPatch.date = patch.date;
+    if ("title" in patch) dbPatch.title = patch.title;
+    if ("start" in patch) dbPatch.start_min = patch.start;
+    if ("end" in patch) dbPatch.end_min = patch.end;
+    if ("type" in patch) dbPatch.type = patch.type;
+    if ("category" in patch) dbPatch.category = patch.category;
+    if ("customColor" in patch) dbPatch.custom_color = patch.customColor;
+    if ("description" in patch) dbPatch.description = patch.description;
+    if ("repeat" in patch) dbPatch.repeat = patch.repeat;
+    const { error } = await supabase.from("activities").update(dbPatch).eq("id", id);
+    if (error) console.error("Error actualizando actividad:", error.message);
+  }
+  async function deleteActivityRow(id) {
+    const { error } = await supabase.from("activities").delete().eq("id", id);
+    if (error) console.error("Error eliminando actividad:", error.message);
+  }
+  async function toggleCompletionRow(activityId, occurrenceDate, done) {
+    const { error } = await supabase.from("activity_completions")
+      .upsert({ user_id: session.user.id, activity_id: activityId, occurrence_date: occurrenceDate, done }, { onConflict: "user_id,activity_id,occurrence_date" });
+    if (error) console.error("Error guardando completado:", error.message);
+  }
+  async function patchJournalRow(date, patch) {
+    const { error } = await supabase.from("journals")
+      .upsert({ user_id: session.user.id, date, ...patch }, { onConflict: "user_id,date" });
+    if (error) console.error("Error guardando journal:", error.message);
+  }
+
+  // --- Persistencia de Trading (tabla `trades`) ---
+  async function insertTradeRow(payload) {
+    const { data, error } = await supabase.from("trades").insert({ user_id: session.user.id, date: payload.date, symbol: payload.symbol, pnl: payload.pnl }).select().single();
+    if (error) { console.error("Error creando operación:", error.message); return null; }
+    return { id: data.id, date: data.date, symbol: data.symbol, pnl: Number(data.pnl) };
+  }
+  async function patchTradeRow(id, patch) {
+    const { error } = await supabase.from("trades").update(patch).eq("id", id);
+    if (error) console.error("Error actualizando operación:", error.message);
+  }
+  async function deleteTradeRow(id) {
+    const { error } = await supabase.from("trades").delete().eq("id", id);
+    if (error) console.error("Error eliminando operación:", error.message);
+  }
+  async function updateAccountSize(value) {
+    setAccountSize(value);
+    const { error } = await supabase.from("profiles").update({ account_size: value }).eq("id", session.user.id);
+    if (error) console.error("Error actualizando tamaño de cuenta:", error.message);
   }
 
   const isAdmin = profile?.role === "admin";
@@ -2700,14 +2925,14 @@ export default function App() {
           </div>
         )}
         {view === "resumen" && <Resumen expenses={expenses} tasks={tasks} habits={habits} products={products} />}
-        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} addCustomCategory={addCustomCategory} />}
+        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} addCustomCategory={addCustomCategory} insertExpenseRow={insertExpenseRow} patchExpenseRow={patchExpenseRow} deleteExpenseRow={deleteExpenseRow} />}
         {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} financeLoading={financeLoading} />}
         {view === "metas" && <Metas goals={goals} setGoals={setGoals} incomes={incomes} insertGoalRow={insertGoalRow} patchGoalRow={patchGoalRow} deleteGoalRow={deleteGoalRow} financeLoading={financeLoading} />}
-        {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} patchGoalRow={patchGoalRow} />}
-        {view === "trading" && <Trading trades={trades} setTrades={setTrades} accountSize={accountSize} setAccountSize={setAccountSize} />}
-        {view === "tareas" && <Tareas tasks={tasks} setTasks={setTasks} />}
-        {view === "habitos" && <Habitos habits={habits} setHabits={setHabits} />}
-        {view === "productos" && <Productos products={products} setProducts={setProducts} />}
+        {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} patchGoalRow={patchGoalRow} patchTaskRow={patchTaskRow} patchHabitRow={patchHabitRow} insertActivityRow={insertActivityRow} patchActivityRow={patchActivityRow} deleteActivityRow={deleteActivityRow} toggleCompletionRow={toggleCompletionRow} patchJournalRow={patchJournalRow} />}
+        {view === "trading" && <Trading trades={trades} setTrades={setTrades} accountSize={accountSize} updateAccountSize={updateAccountSize} insertTradeRow={insertTradeRow} patchTradeRow={patchTradeRow} deleteTradeRow={deleteTradeRow} />}
+        {view === "tareas" && <Tareas tasks={tasks} setTasks={setTasks} insertTaskRow={insertTaskRow} patchTaskRow={patchTaskRow} deleteTaskRow={deleteTaskRow} />}
+        {view === "habitos" && <Habitos habits={habits} setHabits={setHabits} insertHabitRow={insertHabitRow} patchHabitRow={patchHabitRow} deleteHabitRow={deleteHabitRow} />}
+        {view === "productos" && <Productos products={products} setProducts={setProducts} insertProductRow={insertProductRow} patchProductRow={patchProductRow} deleteProductRow={deleteProductRow} />}
         {view === "usuarios" && isAdmin && <Usuarios myId={session.user.id} />}
       </div>
     </div>
