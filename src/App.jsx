@@ -667,8 +667,10 @@ function CategoryCalendar({ category, expenses, setExpenses, customCategories, i
 
 function inputStyle() {
   return {
+    // fontSize 16 a propósito: por debajo de eso, Safari en iOS hace zoom
+    // automático al enfocar el campo.
     ...fontBody, width: "100%", background: COLORS.elevated, border: `1px solid ${COLORS.border}`,
-    borderRadius: 8, padding: "9px 12px", color: COLORS.paper, fontSize: 13.5, marginBottom: 12,
+    borderRadius: 8, padding: "9px 12px", color: COLORS.paper, fontSize: 16, marginBottom: 12,
     outline: "none", boxSizing: "border-box",
   };
 }
@@ -896,8 +898,8 @@ function Metas({ goals, setGoals, incomes, insertGoalRow, patchGoalRow, deleteGo
                   ) : (
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <input type="number" value={g.progress} onChange={e => updateProgress(g.id, Number(e.target.value))} style={{
-                        ...fontMono, width: 110, background: COLORS.elevated, border: `1px solid ${COLORS.border}`,
-                        borderRadius: 6, padding: "6px 8px", color: COLORS.paper, fontSize: 12.5, outline: "none",
+                        ...fontMono, width: 120, background: COLORS.elevated, border: `1px solid ${COLORS.border}`,
+                        borderRadius: 6, padding: "6px 8px", color: COLORS.paper, fontSize: 16, outline: "none",
                       }} />
                       <span style={{ ...fontMono, color: COLORS.muted, fontSize: 12.5 }}>/ {g.money ? fmtCOP(g.target) : g.target}</span>
                     </div>
