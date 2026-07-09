@@ -5,12 +5,30 @@ import {
   Plus, Trash2, ChevronRight, TrendingUp, TrendingDown, Coffee,
   UtensilsCrossed, ShoppingCart, Car, Home as HomeIcon, Zap,
   HeartPulse, ShoppingBag, Trash, GraduationCap, MoreHorizontal, Check,
-  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, Menu, LogOut, Users, ShieldCheck, Globe, Pencil, PiggyBank, Tag
+  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, Menu, LogOut, Users, ShieldCheck, Pencil, PiggyBank, Tag
 } from "lucide-react";
-import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  LineChart, Line
-} from "recharts";
+
+// recharts (~200KB+ del bundle) se carga de forma perezosa vía import() dinámico
+// en useRecharts(), en vez de un import estático, para que quede en su propio
+// chunk y solo se descargue cuando el usuario visita Resumen o Hábitos.
+let rechartsPromise = null;
+function useRecharts() {
+  const [mod, setMod] = useState(null);
+  useEffect(() => {
+    if (!rechartsPromise) rechartsPromise = import("recharts");
+    let cancelled = false;
+    rechartsPromise.then(m => { if (!cancelled) setMod(m); });
+    return () => { cancelled = true; };
+  }, []);
+  return mod;
+}
+function ChartLoading({ height }) {
+  return (
+    <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: 0 }}>Cargando gráfico…</p>
+    </div>
+  );
+}
 
 /* ---------------------------------------------------------
    PROGO — panel de negocio para comunidades de e-commerce
@@ -83,7 +101,6 @@ function displayNameFromEmail(email) {
     .map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
 }
 
-const LANGUAGES = [["es", "Español"], ["en", "English"]];
 
 function AppleToggle({ checked, onChange }) {
   return (
@@ -238,6 +255,7 @@ function PrimaryButton({ children, onClick, accent = COLORS.gold }) {
 --------------------------------------------------------- */
 
 function Resumen({ expenses, tasks, habits, products }) {
+  const recharts = useRecharts();
   const totalGastos = expenses.reduce((a, e) => a + e.amount, 0);
   const tareasHechas = tasks.diario.filter(t => t.done).length;
   const ganadores = products.filter(p => p.status === "Ganador").length;
@@ -269,19 +287,21 @@ function Resumen({ expenses, tasks, habits, products }) {
       <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "20px 24px" }}>
         <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Gastos por día</p>
         <div style={{ height: 220 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid stroke={COLORS.border} vertical={false} />
-              <XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={{ stroke: COLORS.border }} tickLine={false} />
-              <YAxis tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} width={70} tickFormatter={v => fmtCOP(v)} />
-              <Tooltip
-                contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: "'Inter', sans-serif", fontSize: 13 }}
-                formatter={v => fmtCOP(v)}
-                labelStyle={{ color: COLORS.muted }}
-              />
-              <Bar dataKey="amount" fill={COLORS.gold} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {!recharts ? <ChartLoading height={220} /> : (
+            <recharts.ResponsiveContainer width="100%" height="100%">
+              <recharts.BarChart data={chartData}>
+                <recharts.CartesianGrid stroke={COLORS.border} vertical={false} />
+                <recharts.XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={{ stroke: COLORS.border }} tickLine={false} />
+                <recharts.YAxis tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} width={70} tickFormatter={v => fmtCOP(v)} />
+                <recharts.Tooltip
+                  contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: "'Inter', sans-serif", fontSize: 13 }}
+                  formatter={v => fmtCOP(v)}
+                  labelStyle={{ color: COLORS.muted }}
+                />
+                <recharts.Bar dataKey="amount" fill={COLORS.gold} radius={[4, 4, 0, 0]} />
+              </recharts.BarChart>
+            </recharts.ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>
@@ -870,9 +890,15 @@ function Metas({ goals, setGoals, incomes, insertGoalRow, patchGoalRow, deleteGo
    INGRESOS Y SALDOS
 --------------------------------------------------------- */
 
-function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, financeLoading }) {
+const MOVEMENT_KIND_META = {
+  ingreso: { label: "Ingresos", dateField: "income_date", verb: "ingreso", get accent() { return COLORS.teal; } },
+  egreso: { label: "Egresos", dateField: "expense_date", verb: "egreso", get accent() { return COLORS.coral; } },
+};
+
+function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, egresos, addEgreso, editEgreso, deleteEgreso, financeLoading }) {
   const todayISO = isoDateLocal(new Date());
   const monthPrefix = todayISO.slice(0, 7);
+  const [kind, setKind] = useState("ingreso");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ amount: "", concept: "", date: todayISO, category: "", note: "" });
@@ -881,10 +907,19 @@ function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, financeL
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
+  const meta = MOVEMENT_KIND_META[kind];
+  const items = kind === "ingreso" ? incomes : egresos;
+  const addFn = kind === "ingreso" ? addIncome : addEgreso;
+  const editFn = kind === "ingreso" ? editIncome : editEgreso;
+  const deleteFn = kind === "ingreso" ? deleteIncome : deleteEgreso;
+
   const totalIncome = incomes.reduce((s, i) => s + Number(i.amount), 0);
-  const saldoActual = totalIncome; // por ahora saldo = ingresos; cuando exista un módulo de egresos, saldo = ingresos - egresos
+  const totalEgresos = egresos.reduce((s, e) => s + Number(e.amount), 0);
+  const saldoActual = totalIncome - totalEgresos;
   const monthIncome = incomes.filter(i => i.income_date.startsWith(monthPrefix)).reduce((s, i) => s + Number(i.amount), 0);
-  const todayIncome = incomes.filter(i => i.income_date === todayISO).reduce((s, i) => s + Number(i.amount), 0);
+  const monthEgresos = egresos.filter(e => e.expense_date.startsWith(monthPrefix)).reduce((s, e) => s + Number(e.amount), 0);
+
+  function switchKind(k) { setKind(k); setConfirmDeleteId(null); }
 
   function openNew() {
     setEditingId(null);
@@ -894,7 +929,7 @@ function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, financeL
   }
   function openEdit(i) {
     setEditingId(i.id);
-    setForm({ amount: String(i.amount), concept: i.concept, date: i.income_date, category: i.category || "", note: i.note || "" });
+    setForm({ amount: String(i.amount), concept: i.concept, date: i[meta.dateField], category: i.category || "", note: i.note || "" });
     setError("");
     setModalOpen(true);
   }
@@ -908,45 +943,55 @@ function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, financeL
     setSaving(true);
     setError("");
     const payload = { amount, concept: form.concept.trim(), date: form.date, category: form.category.trim(), note: form.note.trim() };
-    const { error: err } = editingId ? await editIncome(editingId, payload) : await addIncome(payload);
+    const { error: err } = editingId ? await editFn(editingId, payload) : await addFn(payload);
     setSaving(false);
-    if (err) { setError(err.message || "No se pudo guardar el ingreso."); return; }
-    setNotice(editingId ? "Ingreso actualizado." : "Ingreso registrado.");
+    if (err) { setError(err.message || `No se pudo guardar el ${meta.verb}.`); return; }
+    setNotice(editingId ? `${meta.label.slice(0, -1)} actualizado.` : `${meta.label.slice(0, -1)} registrado.`);
     setTimeout(() => setNotice(""), 3000);
     setModalOpen(false);
   }
 
   async function handleDelete(id) {
-    const { error: err } = await deleteIncome(id);
-    if (err) { setError(err.message || "No se pudo eliminar el ingreso."); }
+    const { error: err } = await deleteFn(id);
+    if (err) { setError(err.message || `No se pudo eliminar el ${meta.verb}.`); }
     setConfirmDeleteId(null);
   }
 
-  const sorted = [...incomes].sort((a, b) => b.income_date.localeCompare(a.income_date) || b.id - a.id);
+  const sorted = [...items].sort((a, b) => b[meta.dateField].localeCompare(a[meta.dateField]) || b.id - a.id);
 
   return (
     <div>
-      <SectionHeader icon={PiggyBank} title="Ingresos y saldos" subtitle="Control básico de tus ingresos y tu saldo" accent={COLORS.teal}
-        right={<PrimaryButton onClick={openNew} accent={COLORS.teal}><Plus size={16} /> Registrar ingreso</PrimaryButton>}
+      <SectionHeader icon={PiggyBank} title="Ingresos y saldos" subtitle="Control de tus ingresos, egresos y tu saldo" accent={COLORS.teal}
+        right={<PrimaryButton onClick={openNew} accent={meta.accent}><Plus size={16} /> Registrar {meta.verb}</PrimaryButton>}
       />
 
       {financeLoading ? (
-        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5 }}>Cargando ingresos…</p>
+        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5 }}>Cargando movimientos…</p>
       ) : (
       <>
       {notice && <p style={{ ...fontBody, color: COLORS.teal, fontSize: 13, margin: "0 0 14px" }}>{notice}</p>}
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 24 }}>
         <StatCard label="Ingresos totales" value={fmtCOP(totalIncome)} sub={`${incomes.length} registros`} accent={COLORS.teal} />
-        <StatCard label="Saldo actual" value={fmtCOP(saldoActual)} sub="Ingresos - egresos (próximamente)" accent={COLORS.gold} />
-        <StatCard label="Total de ingresos registrados" value={incomes.length} sub="Registros históricos" accent={COLORS.violet} />
+        <StatCard label="Egresos totales" value={fmtCOP(totalEgresos)} sub={`${egresos.length} registros`} accent={COLORS.coral} />
+        <StatCard label="Saldo actual" value={fmtCOP(saldoActual)} sub="Ingresos - egresos" accent={COLORS.gold} />
         <StatCard label="Ingresos del mes" value={fmtCOP(monthIncome)} sub={monthPrefix} accent={COLORS.teal} />
-        <StatCard label="Ingresos de hoy" value={fmtCOP(todayIncome)} sub={todayISO} accent={COLORS.coral} />
+        <StatCard label="Egresos del mes" value={fmtCOP(monthEgresos)} sub={monthPrefix} accent={COLORS.coral} />
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {Object.entries(MOVEMENT_KIND_META).map(([key, m]) => (
+          <button key={key} onClick={() => switchKind(key)} style={{
+            ...fontBody, padding: "8px 16px", borderRadius: 9, border: `1px solid ${kind === key ? m.accent : COLORS.border}`,
+            background: kind === key ? m.accent + "1c" : "transparent", color: kind === key ? m.accent : COLORS.muted,
+            fontSize: 13.5, fontWeight: 600, cursor: "pointer",
+          }}>{m.label}</button>
+        ))}
       </div>
 
       <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
         {sorted.length === 0 ? (
-          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, padding: 20 }}>No hay ingresos registrados todavía.</p>
+          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, padding: 20 }}>No hay {meta.label.toLowerCase()} registrados todavía.</p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <div style={{ minWidth: 640 }}>
@@ -955,25 +1000,25 @@ function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, financeL
                   <span key={i} style={{ ...fontBody, color: COLORS.muted, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, whiteSpace: "nowrap" }}>{h}</span>
                 ))}
               </div>
-              {sorted.map(inc => (
-                <div key={inc.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 24px 24px", gap: 16, padding: "14px 20px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center" }}>
+              {sorted.map(row => (
+                <div key={row.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 24px 24px", gap: 16, padding: "14px 20px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center" }}>
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14, fontWeight: 500, margin: 0 }}>{inc.concept}</p>
-                    {inc.note && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12, margin: "3px 0 0" }}>{inc.note}</p>}
+                    <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14, fontWeight: 500, margin: 0 }}>{row.concept}</p>
+                    {row.note && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12, margin: "3px 0 0" }}>{row.note}</p>}
                   </div>
-                  <span style={{ ...fontMono, color: COLORS.muted, fontSize: 13, whiteSpace: "nowrap" }}>{inc.income_date}</span>
-                  <span style={{ ...fontMono, color: COLORS.muted, fontSize: 13, whiteSpace: "nowrap" }}>{inc.category || "—"}</span>
-                  <span style={{ ...fontMono, color: COLORS.teal, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>{fmtCOP(inc.amount)}</span>
-                  {confirmDeleteId === inc.id ? (
+                  <span style={{ ...fontMono, color: COLORS.muted, fontSize: 13, whiteSpace: "nowrap" }}>{row[meta.dateField]}</span>
+                  <span style={{ ...fontMono, color: COLORS.muted, fontSize: 13, whiteSpace: "nowrap" }}>{row.category || "—"}</span>
+                  <span style={{ ...fontMono, color: meta.accent, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>{fmtCOP(row.amount)}</span>
+                  {confirmDeleteId === row.id ? (
                     <div style={{ gridColumn: "5 / 7", display: "flex", gap: 6, alignItems: "center", justifySelf: "end" }}>
                       <span style={{ ...fontBody, fontSize: 12, color: COLORS.muted, whiteSpace: "nowrap" }}>¿Eliminar?</span>
-                      <button onClick={() => handleDelete(inc.id)} style={{ ...fontBody, fontSize: 12, fontWeight: 600, color: COLORS.coral, background: "none", border: "none", cursor: "pointer" }}>Sí</button>
+                      <button onClick={() => handleDelete(row.id)} style={{ ...fontBody, fontSize: 12, fontWeight: 600, color: COLORS.coral, background: "none", border: "none", cursor: "pointer" }}>Sí</button>
                       <button onClick={() => setConfirmDeleteId(null)} style={{ ...fontBody, fontSize: 12, color: COLORS.muted, background: "none", border: "none", cursor: "pointer" }}>No</button>
                     </div>
                   ) : (
                     <>
-                      <button onClick={() => openEdit(inc)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><Pencil size={13} /></button>
-                      <button onClick={() => setConfirmDeleteId(inc.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><X size={14} /></button>
+                      <button onClick={() => openEdit(row)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><Pencil size={13} /></button>
+                      <button onClick={() => setConfirmDeleteId(row.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><X size={14} /></button>
                     </>
                   )}
                 </div>
@@ -988,12 +1033,12 @@ function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, financeL
       {modalOpen && (
         <div onClick={closeModal} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(8,10,14,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, maxHeight: "85vh", overflowY: "auto" }}>
-            <p style={{ ...fontDisplay, color: COLORS.paper, fontSize: 17, fontWeight: 700, margin: "0 0 16px" }}>{editingId ? "Editar ingreso" : "Registrar ingreso"}</p>
+            <p style={{ ...fontDisplay, color: COLORS.paper, fontSize: 17, fontWeight: 700, margin: "0 0 16px" }}>{editingId ? `Editar ${meta.verb}` : `Registrar ${meta.verb}`}</p>
 
             <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Monto</label>
             <input type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" style={inputStyle()} autoFocus />
             <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Concepto</label>
-            <input value={form.concept} onChange={e => setForm({ ...form, concept: e.target.value })} placeholder="Ej. Venta tienda" style={inputStyle()} />
+            <input value={form.concept} onChange={e => setForm({ ...form, concept: e.target.value })} placeholder={kind === "ingreso" ? "Ej. Venta tienda" : "Ej. Pago proveedor"} style={inputStyle()} />
             <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Fecha</label>
             <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={inputStyle()} />
             <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Categoría (opcional)</label>
@@ -1004,8 +1049,8 @@ function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, financeL
             {error && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 12.5, margin: "0 0 12px" }}>{error}</p>}
 
             <div style={{ display: "flex", gap: 8 }}>
-              <PrimaryButton onClick={handleSubmit} accent={COLORS.teal}>
-                {saving ? "Guardando…" : <><Check size={16} /> {editingId ? "Guardar cambios" : "Registrar ingreso"}</>}
+              <PrimaryButton onClick={handleSubmit} accent={meta.accent}>
+                {saving ? "Guardando…" : <><Check size={16} /> {editingId ? "Guardar cambios" : `Registrar ${meta.verb}`}</>}
               </PrimaryButton>
               <button onClick={closeModal} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>
             </div>
@@ -1120,6 +1165,7 @@ function Tareas({ tasks, setTasks, insertTaskRow, patchTaskRow, deleteTaskRow })
 const HABIT_TONE_KEYS = ["gold", "teal", "coral", "violet"];
 
 function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabitRow }) {
+  const recharts = useRecharts();
   const [selectedDate, setSelectedDate] = useState(null);
   const [newHabit, setNewHabit] = useState({ name: "", toneKey: "gold" });
   const [editingId, setEditingId] = useState(null);
@@ -1283,20 +1329,22 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18 }}>
             <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>% de hábitos cumplidos por día</p>
             <div style={{ height: 160 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dailyPct}>
-                  <CartesianGrid stroke={COLORS.border} vertical={false} />
-                  <XAxis dataKey="day" tick={{ fill: COLORS.muted, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} axisLine={{ stroke: COLORS.border }} tickLine={false} interval={2} />
-                  <YAxis domain={[0, 100]} tick={{ fill: COLORS.muted, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} width={32} />
-                  <Tooltip
-                    contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: "'Inter', sans-serif", fontSize: 12 }}
-                    formatter={v => `${v}%`}
-                    labelFormatter={l => `Día ${l}`}
-                    labelStyle={{ color: COLORS.muted }}
-                  />
-                  <Bar dataKey="pct" fill={COLORS.teal} radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {!recharts ? <ChartLoading height={160} /> : (
+                <recharts.ResponsiveContainer width="100%" height="100%">
+                  <recharts.BarChart data={dailyPct}>
+                    <recharts.CartesianGrid stroke={COLORS.border} vertical={false} />
+                    <recharts.XAxis dataKey="day" tick={{ fill: COLORS.muted, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} axisLine={{ stroke: COLORS.border }} tickLine={false} interval={2} />
+                    <recharts.YAxis domain={[0, 100]} tick={{ fill: COLORS.muted, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} width={32} />
+                    <recharts.Tooltip
+                      contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: "'Inter', sans-serif", fontSize: 12 }}
+                      formatter={v => `${v}%`}
+                      labelFormatter={l => `Día ${l}`}
+                      labelStyle={{ color: COLORS.muted }}
+                    />
+                    <recharts.Bar dataKey="pct" fill={COLORS.teal} radius={[3, 3, 0, 0]} />
+                  </recharts.BarChart>
+                </recharts.ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -2450,7 +2498,7 @@ export default function App() {
         if (insertError) setProfileError(insertError.message);
         else setProfile(created);
       } else if (error) {
-        setProfileError(error.message + (error.code === "PGRST205" || error.status === 404 ? " — ¿ya corriste supabase/schema.sql y supabase/profiles.sql en el SQL Editor?" : ""));
+        setProfileError(error.message + (error.code === "PGRST205" || error.status === 404 ? " — ¿ya corriste supabase/schema.sql en el SQL Editor?" : ""));
       } else if (data.disabled) {
         setDisabledNotice(true);
         supabase.auth.signOut();
@@ -2476,9 +2524,8 @@ export default function App() {
   const [journals, setJournals] = useState({});
   const [trades, setTrades] = useState([]);
   const [accountSize, setAccountSize] = useState(10000);
-  const [language, setLanguage] = useState("es");
-  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [incomes, setIncomes] = useState([]);
+  const [egresos, setEgresos] = useState([]);
   const [financeLoading, setFinanceLoading] = useState(true);
   const isMobile = useIsMobile();
 
@@ -2487,9 +2534,10 @@ export default function App() {
     let cancelled = false;
     setFinanceLoading(true);
     (async () => {
-      const [goalsRes, incomesRes, catsRes, tasksRes, expensesRes, habitsRes, productsRes, activitiesRes, completionsRes, journalsRes, tradesRes] = await Promise.all([
+      const [goalsRes, incomesRes, egresosRes, catsRes, tasksRes, expensesRes, habitsRes, productsRes, activitiesRes, completionsRes, journalsRes, tradesRes] = await Promise.all([
         supabase.from("goals").select("*").order("id", { ascending: true }),
         supabase.from("incomes").select("*").order("income_date", { ascending: false }).order("id", { ascending: false }),
+        supabase.from("egresos").select("*").order("expense_date", { ascending: false }).order("id", { ascending: false }),
         supabase.from("custom_categories").select("*").order("id", { ascending: true }),
         supabase.from("tasks").select("*").order("id", { ascending: true }),
         supabase.from("expenses").select("*").order("date", { ascending: false }).order("id", { ascending: false }),
@@ -2508,6 +2556,8 @@ export default function App() {
       } else console.error("Error cargando metas:", goalsRes.error.message);
       if (!incomesRes.error) setIncomes(incomesRes.data || []);
       else console.error("Error cargando ingresos:", incomesRes.error.message);
+      if (!egresosRes.error) setEgresos(egresosRes.data || []);
+      else console.error("Error cargando egresos:", egresosRes.error.message);
       if (!catsRes.error) setCustomCategories((catsRes.data || []).map(r => ({ id: r.id, name: r.name, color: r.color })));
       else console.error("Error cargando categorías:", catsRes.error.message);
       if (!tasksRes.error) {
@@ -2617,6 +2667,32 @@ export default function App() {
     const { error } = await supabase.from("incomes").delete().eq("id", id);
     if (error) return { error };
     setIncomes(prev => prev.filter(i => i.id !== id));
+    return {};
+  }
+
+  // --- Persistencia de Egresos (tabla `egresos`) — única fuente de verdad para `egresos` ---
+  async function addEgreso(payload) {
+    const { data, error } = await supabase.from("egresos").insert({
+      user_id: session.user.id, amount: payload.amount, concept: payload.concept,
+      category: payload.category || null, note: payload.note || null, expense_date: payload.date,
+    }).select().single();
+    if (error) return { error };
+    setEgresos(prev => [data, ...prev].sort((a, b) => b.expense_date.localeCompare(a.expense_date) || b.id - a.id));
+    return { data };
+  }
+  async function editEgreso(id, payload) {
+    const { data, error } = await supabase.from("egresos").update({
+      amount: payload.amount, concept: payload.concept,
+      category: payload.category || null, note: payload.note || null, expense_date: payload.date,
+    }).eq("id", id).select().single();
+    if (error) return { error };
+    setEgresos(prev => prev.map(e => e.id === id ? data : e).sort((a, b) => b.expense_date.localeCompare(a.expense_date) || b.id - a.id));
+    return { data };
+  }
+  async function deleteEgreso(id) {
+    const { error } = await supabase.from("egresos").delete().eq("id", id);
+    if (error) return { error };
+    setEgresos(prev => prev.filter(e => e.id !== id));
     return {};
   }
 
@@ -2893,30 +2969,6 @@ export default function App() {
 
             <span style={{ ...fontMono, fontSize: 11, fontWeight: 700, color: COLORS.muted, letterSpacing: 0.5, borderLeft: `1px solid ${COLORS.border}`, paddingLeft: 18 }}>JC CREW</span>
 
-            <div style={{ position: "relative" }}>
-              <button onClick={() => setLangMenuOpen(o => !o)} style={{
-                ...fontBody, display: "flex", alignItems: "center", gap: 6, background: "transparent",
-                border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.muted, cursor: "pointer",
-                padding: "7px 12px", fontSize: 13,
-              }}>
-                <Globe size={14} /> {LANGUAGES.find(l => l[0] === language)?.[1]}
-              </button>
-              {langMenuOpen && (
-                <>
-                  <div onClick={() => setLangMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 25 }} />
-                  <div style={{ position: "absolute", top: "110%", right: 0, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 9, overflow: "hidden", zIndex: 30, minWidth: 130 }}>
-                    {LANGUAGES.map(([code, label]) => (
-                      <button key={code} onClick={() => { setLanguage(code); setLangMenuOpen(false); }} style={{
-                        ...fontBody, display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none",
-                        background: language === code ? COLORS.teal + "1c" : "transparent",
-                        color: language === code ? COLORS.teal : COLORS.paper, fontSize: 13, cursor: "pointer",
-                      }}>{label}</button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Sun size={14} color={mode === "dark" ? COLORS.muted : COLORS.gold} />
               <AppleToggle checked={mode === "dark"} onChange={() => setMode(m => m === "dark" ? "light" : "dark")} />
@@ -2926,7 +2978,7 @@ export default function App() {
         )}
         {view === "resumen" && <Resumen expenses={expenses} tasks={tasks} habits={habits} products={products} />}
         {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} addCustomCategory={addCustomCategory} insertExpenseRow={insertExpenseRow} patchExpenseRow={patchExpenseRow} deleteExpenseRow={deleteExpenseRow} />}
-        {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} financeLoading={financeLoading} />}
+        {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} egresos={egresos} addEgreso={addEgreso} editEgreso={editEgreso} deleteEgreso={deleteEgreso} financeLoading={financeLoading} />}
         {view === "metas" && <Metas goals={goals} setGoals={setGoals} incomes={incomes} insertGoalRow={insertGoalRow} patchGoalRow={patchGoalRow} deleteGoalRow={deleteGoalRow} financeLoading={financeLoading} />}
         {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} patchGoalRow={patchGoalRow} patchTaskRow={patchTaskRow} patchHabitRow={patchHabitRow} insertActivityRow={insertActivityRow} patchActivityRow={patchActivityRow} deleteActivityRow={deleteActivityRow} toggleCompletionRow={toggleCompletionRow} patchJournalRow={patchJournalRow} />}
         {view === "trading" && <Trading trades={trades} setTrades={setTrades} accountSize={accountSize} updateAccountSize={updateAccountSize} insertTradeRow={insertTradeRow} patchTradeRow={patchTradeRow} deleteTradeRow={deleteTradeRow} />}
