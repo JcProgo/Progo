@@ -5,7 +5,7 @@ import {
   Plus, Trash2, ChevronRight, TrendingUp, TrendingDown, Coffee,
   UtensilsCrossed, ShoppingCart, Car, Home as HomeIcon, Zap,
   HeartPulse, ShoppingBag, Trash, GraduationCap, MoreHorizontal, Check,
-  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, Menu, LogOut, Users, ShieldCheck, Globe, Pencil, PiggyBank
+  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, Menu, LogOut, Users, ShieldCheck, Globe, Pencil, PiggyBank, Tag
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -147,6 +147,14 @@ const CATEGORY_META = {
 
 const CAT_LIST = Object.keys(CATEGORY_META);
 
+// Metadatos de categoría: primero busca en las fijas, luego en las personalizadas del usuario (nombre + color libres)
+function getCategoryMeta(name, customCategories) {
+  if (CATEGORY_META[name]) return CATEGORY_META[name];
+  const custom = customCategories?.find(c => c.name === name);
+  if (custom) return { icon: Tag, color: custom.color };
+  return { icon: MoreHorizontal, color: COLORS.muted };
+}
+
 const DAY_LABELS = ["L", "M", "X", "J", "V", "S", "D"];
 
 const STATUS_META = {
@@ -284,11 +292,26 @@ function Resumen({ expenses, tasks, habits, products }) {
    GASTOS
 --------------------------------------------------------- */
 
-function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome }) {
+function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, customCategories, setCustomCategories }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [editingIncome, setEditingIncome] = useState(false);
   const [incomeInput, setIncomeInput] = useState("");
   const [incomeError, setIncomeError] = useState("");
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [catForm, setCatForm] = useState({ name: "", color: "#4FA08F" });
+  const [catError, setCatError] = useState("");
+
+  const catList = [...CAT_LIST, ...customCategories.map(c => c.name)];
+
+  function addCategory() {
+    const name = catForm.name.trim();
+    if (!name) { setCatError("El nombre es obligatorio."); return; }
+    if (catList.some(c => c.toLowerCase() === name.toLowerCase())) { setCatError("Ya existe una categoría con ese nombre."); return; }
+    setCustomCategories(prev => [...prev, { name, color: catForm.color }]);
+    setCatForm({ name: "", color: "#4FA08F" });
+    setCatError("");
+    setAddingCategory(false);
+  }
 
   const byCategory = useMemo(() => {
     const map = {};
@@ -318,7 +341,7 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome }) {
   }
 
   if (selectedCategory) {
-    return <CategoryCalendar category={selectedCategory} expenses={expenses} setExpenses={setExpenses} onBack={() => setSelectedCategory(null)} />;
+    return <CategoryCalendar category={selectedCategory} expenses={expenses} setExpenses={setExpenses} customCategories={customCategories} onBack={() => setSelectedCategory(null)} />;
   }
 
   return (
@@ -367,9 +390,9 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome }) {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 24 }}>
-        {CAT_LIST.map(cat => {
-          const meta = CATEGORY_META[cat];
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: addingCategory ? 14 : 24 }}>
+        {catList.map(cat => {
+          const meta = getCategoryMeta(cat, customCategories);
           const Icon = meta.icon;
           const amount = byCategory[cat] || 0;
           const pct = total ? ((amount / total) * 100).toFixed(1) : "0.0";
@@ -390,7 +413,30 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome }) {
             </div>
           );
         })}
+        <div onClick={() => setAddingCategory(true)} style={{
+          background: "transparent", border: `1px dashed ${COLORS.border}`, borderRadius: 12,
+          padding: "14px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 84,
+        }}>
+          <Plus size={16} color={COLORS.muted} />
+          <span style={{ ...fontBody, fontSize: 13, color: COLORS.muted, fontWeight: 500 }}>Nueva categoría</span>
+        </div>
       </div>
+
+      {addingCategory && (
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, marginBottom: 24 }}>
+          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Nueva categoría personalizada</p>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: catError ? 8 : 0 }}>
+            <input value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })}
+              onKeyDown={e => e.key === "Enter" && addCategory()}
+              placeholder="Nombre (ej. Mascotas)" style={{ ...inputStyle(), marginBottom: 0, flex: 1, minWidth: 160 }} autoFocus />
+            <input type="color" value={catForm.color} onChange={e => setCatForm({ ...catForm, color: e.target.value })}
+              style={{ width: 44, height: 38, padding: 0, border: `1px solid ${COLORS.border}`, borderRadius: 8, background: "none", cursor: "pointer" }} />
+            <PrimaryButton onClick={addCategory} accent={COLORS.coral}><Plus size={16} /> Crear</PrimaryButton>
+            <button onClick={() => { setAddingCategory(false); setCatError(""); }} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>
+          </div>
+          {catError && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 12.5, margin: 0 }}>{catError}</p>}
+        </div>
+      )}
 
       <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between" }}>
@@ -398,7 +444,7 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome }) {
           <span style={{ ...fontMono, color: COLORS.coral, fontWeight: 600, fontSize: 15 }}>{fmtCOP(total)}</span>
         </div>
         {expenses.slice(0, 10).map(e => {
-          const meta = CATEGORY_META[e.category];
+          const meta = getCategoryMeta(e.category, customCategories);
           const Icon = meta.icon;
           return (
             <div key={e.id} onClick={() => setSelectedCategory(e.category)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, cursor: "pointer" }}>
@@ -418,8 +464,8 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome }) {
   );
 }
 
-function CategoryCalendar({ category, expenses, setExpenses, onBack }) {
-  const meta = CATEGORY_META[category];
+function CategoryCalendar({ category, expenses, setExpenses, customCategories, onBack }) {
+  const meta = getCategoryMeta(category, customCategories);
   const Icon = meta.icon;
   const [selectedDate, setSelectedDate] = useState(null);
   const [form, setForm] = useState({ description: "", amount: "" });
@@ -2360,6 +2406,7 @@ export default function App() {
   const [mode, setMode] = useState("dark");
   const [navOpen, setNavOpen] = useState(false);
   const [expenses, setExpenses] = useState([]);
+  const [customCategories, setCustomCategories] = useState([]);
   const [goals, setGoals] = useState({ diario: [], semanal: [], mensual: [], trimestral: [] });
   const [tasks, setTasks] = useState({ diario: [], semanal: [], mensual: [] });
   const [habits, setHabits] = useState([]);
@@ -2560,10 +2607,13 @@ export default function App() {
             background: COLORS.card, borderBottom: `1px solid ${COLORS.border}`, position: "sticky", top: 0, zIndex: 40,
           }}>
             {brand(30)}
-            <button onClick={() => setNavOpen(true)} style={{
-              background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8,
-              color: COLORS.paper, cursor: "pointer", padding: 8, display: "flex",
-            }}><Menu size={19} /></button>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <AppleToggle checked={mode === "dark"} onChange={() => setMode(m => m === "dark" ? "light" : "dark")} />
+              <button onClick={() => setNavOpen(true)} style={{
+                background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8,
+                color: COLORS.paper, cursor: "pointer", padding: 8, display: "flex",
+              }}><Menu size={19} /></button>
+            </div>
           </div>
 
           {navOpen && (
@@ -2632,7 +2682,7 @@ export default function App() {
           </div>
         )}
         {view === "resumen" && <Resumen expenses={expenses} tasks={tasks} habits={habits} products={products} />}
-        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} />}
+        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} setCustomCategories={setCustomCategories} />}
         {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} financeLoading={financeLoading} />}
         {view === "metas" && <Metas goals={goals} setGoals={setGoals} incomes={incomes} insertGoalRow={insertGoalRow} patchGoalRow={patchGoalRow} deleteGoalRow={deleteGoalRow} financeLoading={financeLoading} />}
         {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} patchGoalRow={patchGoalRow} />}
