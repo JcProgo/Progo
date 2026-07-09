@@ -284,8 +284,11 @@ function Resumen({ expenses, tasks, habits, products }) {
    GASTOS
 --------------------------------------------------------- */
 
-function Gastos({ expenses, setExpenses }) {
+function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [editingIncome, setEditingIncome] = useState(false);
+  const [incomeInput, setIncomeInput] = useState("");
+  const [incomeError, setIncomeError] = useState("");
 
   const byCategory = useMemo(() => {
     const map = {};
@@ -294,6 +297,25 @@ function Gastos({ expenses, setExpenses }) {
   }, [expenses]);
 
   const total = expenses.reduce((a, e) => a + e.amount, 0);
+
+  const todayISO = isoDateLocal(new Date());
+  const monthPrefix = todayISO.slice(0, 7);
+  const monthTotal = expenses.filter(e => e.date.startsWith(monthPrefix)).reduce((a, e) => a + e.amount, 0);
+  const spentPct = monthlyIncome ? (monthTotal / monthlyIncome) * 100 : 0;
+  const remaining = (monthlyIncome || 0) - monthTotal;
+
+  function startEditIncome() {
+    setIncomeInput(monthlyIncome ? String(monthlyIncome) : "");
+    setIncomeError("");
+    setEditingIncome(true);
+  }
+  async function saveMonthlyIncome() {
+    const value = Number(incomeInput);
+    if (!value || value <= 0) { setIncomeError("El ingreso mensual debe ser mayor a 0."); return; }
+    const { error } = await updateMonthlyIncome(value);
+    if (error) { setIncomeError(error.message); return; }
+    setEditingIncome(false);
+  }
 
   if (selectedCategory) {
     return <CategoryCalendar category={selectedCategory} expenses={expenses} setExpenses={setExpenses} onBack={() => setSelectedCategory(null)} />;
@@ -304,6 +326,46 @@ function Gastos({ expenses, setExpenses }) {
       <SectionHeader
         icon={Wallet} title="Gastos" subtitle="Administra y controla tus gastos por categoría" accent={COLORS.coral}
       />
+
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: 0 }}>Ingreso mensual</p>
+          {!editingIncome && (
+            <button onClick={startEditIncome} style={{ ...fontBody, background: "none", border: "none", color: COLORS.muted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+              <Pencil size={13} /> {monthlyIncome ? "Editar" : "Configurar"}
+            </button>
+          )}
+        </div>
+
+        {editingIncome ? (
+          <div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: incomeError ? 8 : 0 }}>
+              <input type="number" value={incomeInput} onChange={e => setIncomeInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && saveMonthlyIncome()}
+                placeholder="Ej. 3000000" style={{ ...inputStyle(), marginBottom: 0, width: 180 }} autoFocus />
+              <PrimaryButton onClick={saveMonthlyIncome} accent={COLORS.coral}><Check size={14} /> Guardar</PrimaryButton>
+              <button onClick={() => setEditingIncome(false)} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>
+            </div>
+            {incomeError && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 12.5, margin: 0 }}>{incomeError}</p>}
+          </div>
+        ) : monthlyIncome ? (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+              <span style={{ ...fontMono, fontSize: 13, color: COLORS.muted }}>Gastado este mes: <span style={{ color: COLORS.coral, fontWeight: 600 }}>{fmtCOP(monthTotal)}</span></span>
+              <span style={{ ...fontMono, fontSize: 13, color: COLORS.muted }}>Disponible: <span style={{ color: remaining >= 0 ? COLORS.teal : COLORS.coral, fontWeight: 600 }}>{fmtCOP(remaining)}</span></span>
+            </div>
+            <div style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", background: COLORS.elevated }}>
+              <div style={{ flex: `${Math.min(spentPct, 100)} 0 0%`, background: spentPct > 100 ? COLORS.coral : COLORS.gold }} />
+              {spentPct < 100 && <div style={{ flex: `${100 - spentPct} 0 0%` }} />}
+            </div>
+            {spentPct > 100 && (
+              <p style={{ ...fontBody, color: COLORS.coral, fontSize: 11.5, margin: "8px 0 0" }}>Superaste tu ingreso mensual por {fmtCOP(monthTotal - monthlyIncome)}.</p>
+            )}
+          </>
+        ) : (
+          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13 }}>Configura cuánto ganas al mes para ver tu saldo disponible frente a tus gastos.</p>
+        )}
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 24 }}>
         {CAT_LIST.map(cat => {
@@ -2416,6 +2478,14 @@ export default function App() {
     return {};
   }
 
+  // --- Ingreso mensual configurable (columna en `profiles`, usado en Gastos) ---
+  async function updateMonthlyIncome(value) {
+    const { data, error } = await supabase.from("profiles").update({ monthly_income: value }).eq("id", session.user.id).select().single();
+    if (error) return { error };
+    setProfile(data);
+    return { data };
+  }
+
   const isAdmin = profile?.role === "admin";
   const navList = isAdmin
     ? [...NAV, { key: "usuarios", label: "Usuarios", icon: Users, get accent() { return COLORS.violet; } }]
@@ -2562,7 +2632,7 @@ export default function App() {
           </div>
         )}
         {view === "resumen" && <Resumen expenses={expenses} tasks={tasks} habits={habits} products={products} />}
-        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} />}
+        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} />}
         {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} financeLoading={financeLoading} />}
         {view === "metas" && <Metas goals={goals} setGoals={setGoals} incomes={incomes} insertGoalRow={insertGoalRow} patchGoalRow={patchGoalRow} deleteGoalRow={deleteGoalRow} financeLoading={financeLoading} />}
         {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} patchGoalRow={patchGoalRow} />}
