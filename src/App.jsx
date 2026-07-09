@@ -292,7 +292,7 @@ function Resumen({ expenses, tasks, habits, products }) {
    GASTOS
 --------------------------------------------------------- */
 
-function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, customCategories, setCustomCategories }) {
+function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, customCategories, addCustomCategory }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [editingIncome, setEditingIncome] = useState(false);
   const [incomeInput, setIncomeInput] = useState("");
@@ -300,14 +300,18 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
   const [addingCategory, setAddingCategory] = useState(false);
   const [catForm, setCatForm] = useState({ name: "", color: "#4FA08F" });
   const [catError, setCatError] = useState("");
+  const [savingCategory, setSavingCategory] = useState(false);
 
   const catList = [...CAT_LIST, ...customCategories.map(c => c.name)];
 
-  function addCategory() {
+  async function addCategory() {
     const name = catForm.name.trim();
     if (!name) { setCatError("El nombre es obligatorio."); return; }
     if (catList.some(c => c.toLowerCase() === name.toLowerCase())) { setCatError("Ya existe una categoría con ese nombre."); return; }
-    setCustomCategories(prev => [...prev, { name, color: catForm.color }]);
+    setSavingCategory(true);
+    const { error } = await addCustomCategory(name, catForm.color);
+    setSavingCategory(false);
+    if (error) { setCatError(error.message); return; }
     setCatForm({ name: "", color: "#4FA08F" });
     setCatError("");
     setAddingCategory(false);
@@ -431,7 +435,7 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
               placeholder="Nombre (ej. Mascotas)" style={{ ...inputStyle(), marginBottom: 0, flex: 1, minWidth: 160 }} autoFocus />
             <input type="color" value={catForm.color} onChange={e => setCatForm({ ...catForm, color: e.target.value })}
               style={{ width: 44, height: 38, padding: 0, border: `1px solid ${COLORS.border}`, borderRadius: 8, background: "none", cursor: "pointer" }} />
-            <PrimaryButton onClick={addCategory} accent={COLORS.coral}><Plus size={16} /> Crear</PrimaryButton>
+            <PrimaryButton onClick={addCategory} accent={COLORS.coral}>{savingCategory ? "Creando…" : <><Plus size={16} /> Crear</>}</PrimaryButton>
             <button onClick={() => { setAddingCategory(false); setCatError(""); }} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>
           </div>
           {catError && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 12.5, margin: 0 }}>{catError}</p>}
@@ -2427,9 +2431,10 @@ export default function App() {
     let cancelled = false;
     setFinanceLoading(true);
     (async () => {
-      const [goalsRes, incomesRes] = await Promise.all([
+      const [goalsRes, incomesRes, catsRes] = await Promise.all([
         supabase.from("goals").select("*").order("id", { ascending: true }),
         supabase.from("incomes").select("*").order("income_date", { ascending: false }).order("id", { ascending: false }),
+        supabase.from("custom_categories").select("*").order("id", { ascending: true }),
       ]);
       if (cancelled) return;
       if (!goalsRes.error) {
@@ -2441,6 +2446,8 @@ export default function App() {
       }
       if (!incomesRes.error) setIncomes(incomesRes.data || []);
       else console.error("Error cargando ingresos:", incomesRes.error.message);
+      if (!catsRes.error) setCustomCategories((catsRes.data || []).map(r => ({ id: r.id, name: r.name, color: r.color })));
+      else console.error("Error cargando categorías:", catsRes.error.message);
       setFinanceLoading(false);
     })();
     return () => { cancelled = true; };
@@ -2533,6 +2540,15 @@ export default function App() {
     return { data };
   }
 
+  // --- Categorías de gasto personalizadas (tabla `custom_categories`) ---
+  async function addCustomCategory(name, color) {
+    const { data, error } = await supabase.from("custom_categories").insert({ user_id: session.user.id, name, color }).select().single();
+    if (error) return { error };
+    const created = { id: data.id, name: data.name, color: data.color };
+    setCustomCategories(prev => [...prev, created]);
+    return { data: created };
+  }
+
   const isAdmin = profile?.role === "admin";
   const navList = isAdmin
     ? [...NAV, { key: "usuarios", label: "Usuarios", icon: Users, get accent() { return COLORS.violet; } }]
@@ -2607,8 +2623,10 @@ export default function App() {
             background: COLORS.card, borderBottom: `1px solid ${COLORS.border}`, position: "sticky", top: 0, zIndex: 40,
           }}>
             {brand(30)}
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Sun size={13} color={mode === "dark" ? COLORS.muted : COLORS.gold} />
               <AppleToggle checked={mode === "dark"} onChange={() => setMode(m => m === "dark" ? "light" : "dark")} />
+              <Moon size={13} color={mode === "dark" ? COLORS.violet : COLORS.muted} />
               <button onClick={() => setNavOpen(true)} style={{
                 background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8,
                 color: COLORS.paper, cursor: "pointer", padding: 8, display: "flex",
@@ -2682,7 +2700,7 @@ export default function App() {
           </div>
         )}
         {view === "resumen" && <Resumen expenses={expenses} tasks={tasks} habits={habits} products={products} />}
-        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} setCustomCategories={setCustomCategories} />}
+        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} addCustomCategory={addCustomCategory} />}
         {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} financeLoading={financeLoading} />}
         {view === "metas" && <Metas goals={goals} setGoals={setGoals} incomes={incomes} insertGoalRow={insertGoalRow} patchGoalRow={patchGoalRow} deleteGoalRow={deleteGoalRow} financeLoading={financeLoading} />}
         {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} patchGoalRow={patchGoalRow} />}
