@@ -2984,32 +2984,35 @@ export default function App() {
           )}
 
           <div style={{
-            position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, display: "flex",
-            background: COLORS.card + "e6", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-            borderTop: `1px solid ${COLORS.border}`,
-            paddingTop: 8, paddingBottom: "calc(8px + env(safe-area-inset-bottom, 0px))",
+            position: "fixed", left: 14, right: 14, bottom: "calc(14px + env(safe-area-inset-bottom, 0px))",
+            zIndex: 50, display: "flex", justifyContent: "space-between",
+            background: COLORS.card + "d9", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+            border: `1px solid ${COLORS.border}`, borderRadius: 28,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.28)", padding: 6,
           }}>
             {bottomTabs.map(item => {
               const Icon = item.icon;
               const active = view === item.key;
               return (
                 <button key={item.key} onClick={() => selectView(item.key)} style={{
-                  flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-                  background: "transparent", border: "none", cursor: "pointer", padding: "2px 0",
-                  color: active ? item.accent : COLORS.muted,
+                  flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+                  background: active ? COLORS.elevated : "transparent", borderRadius: 20,
+                  border: "none", cursor: "pointer", padding: "7px 4px",
+                  color: active ? COLORS.paper : COLORS.muted,
                 }}>
-                  <Icon size={22} strokeWidth={active ? 2.3 : 1.8} />
-                  <span style={{ ...fontBody, fontSize: 10, fontWeight: active ? 600 : 500 }}>{BOTTOM_TAB_LABELS[item.key]}</span>
+                  <Icon size={21} strokeWidth={active ? 2.2 : 1.8} />
+                  <span style={{ ...fontBody, fontSize: 9.5, fontWeight: active ? 700 : 500 }}>{BOTTOM_TAB_LABELS[item.key]}</span>
                 </button>
               );
             })}
             <button onClick={() => setNavOpen(true)} style={{
-              flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-              background: "transparent", border: "none", cursor: "pointer", padding: "2px 0",
-              color: moreActive ? COLORS.gold : COLORS.muted,
+              flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+              background: moreActive ? COLORS.elevated : "transparent", borderRadius: 20,
+              border: "none", cursor: "pointer", padding: "7px 4px",
+              color: moreActive ? COLORS.paper : COLORS.muted,
             }}>
-              <MoreHorizontal size={22} strokeWidth={moreActive ? 2.3 : 1.8} />
-              <span style={{ ...fontBody, fontSize: 10, fontWeight: moreActive ? 600 : 500 }}>Más</span>
+              <MoreHorizontal size={21} strokeWidth={moreActive ? 2.2 : 1.8} />
+              <span style={{ ...fontBody, fontSize: 9.5, fontWeight: moreActive ? 700 : 500 }}>Más</span>
             </button>
           </div>
         </>
@@ -3024,7 +3027,7 @@ export default function App() {
       <div style={{
         flex: 1, minWidth: 0, overflowY: "auto",
         ...(isMobile
-          ? { padding: 16, paddingBottom: "calc(76px + env(safe-area-inset-bottom, 0px))" }
+          ? { padding: 16, paddingBottom: "calc(88px + env(safe-area-inset-bottom, 0px))" }
           : { padding: "28px 32px" }),
       }}>
         {!isMobile && (
