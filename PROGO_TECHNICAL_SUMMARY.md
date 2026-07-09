@@ -20,6 +20,7 @@ Secciones: Resumen, Gastos, Ingresos y saldos, Metas, Rutina, Trading, Tareas di
 - **Backend:** Supabase (Postgres + Auth), acceso directo desde el cliente vía `@supabase/supabase-js`, sin backend propio ni Edge Functions. Todas las reglas de acceso viven en Row Level Security (RLS) de Postgres.
 - **Hosting:** Vercel, proyecto `progo` bajo el team `jcprogos-projects`. Deploy automático on push a `main` en GitHub (`github.com/JcProgo/Progo`, público).
 - **URL producción:** `https://progo-theta.vercel.app/`
+- **PWA instalable:** `vite-plugin-pwa` (modo `generateSW`, `registerType: 'autoUpdate'`) genera `manifest.webmanifest` + service worker en el build. Íconos en `public/icons/` (192, 512, maskable-512, apple-touch-icon), todos derivados del ícono azul de `ProgoMark`. Desde el navegador del celular: Android — menú del navegador → "Instalar app"/"Añadir a pantalla de inicio"; iOS Safari — botón compartir → "Añadir a pantalla de inicio". Abre a pantalla completa, sin barra del navegador. El service worker solo precachea los archivos estáticos del build (JS/CSS/íconos) — las llamadas a Supabase siguen yendo directo a la red, no hay caché de datos ni modo offline real.
 
 ### Convención de persistencia (aplicada a TODAS las secciones)
 Cada dominio de datos sigue el mismo patrón, sin excepción:
