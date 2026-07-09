@@ -52,7 +52,7 @@ if (typeof document !== "undefined" && !document.getElementById(FONT_IMPORT_ID))
   const link = document.createElement("link");
   link.id = FONT_IMPORT_ID;
   link.rel = "stylesheet";
-  link.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap";
+  link.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Poppins:wght@800&display=swap";
   document.head.appendChild(link);
 }
 
@@ -203,6 +203,33 @@ function ProgoMark({ size = 34, mode = "dark" }) {
       <rect x="106" y="75" width="18" height="75" rx="6" fill="#FFFFFF" />
       <path d="M128 68 L150 46 M150 46 L150 60 M150 46 L136 46"
             stroke="#FFFFFF" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
+// Wordmark "PROGO" con las O's como anillos de color (azul en oscuro, naranja en
+// claro) — misma tipografía y proporciones que los logos originales del Finder.
+function ProgoWordmark({ height = 20, mode = "dark" }) {
+  const gradId = `progoWordmarkGrad-${mode}`;
+  const stops = mode === "dark"
+    ? ["#0A2540", "#4FC3F7"] // O azul
+    : ["#FF6B00", "#FFD200"]; // O naranja
+  const width = height * (310 / 62);
+  return (
+    <svg width={width} height={height} viewBox="175 68 310 62" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id={gradId} x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor={stops[0]} />
+          <stop offset="100%" stopColor={stops[1]} />
+        </linearGradient>
+      </defs>
+      <text y="122" fontFamily="'Poppins','Century Gothic','Trebuchet MS',sans-serif" fontWeight="800" fontSize="64" fill={COLORS.paper}>
+        <tspan x="185">P</tspan>
+        <tspan x="260">R</tspan>
+      </text>
+      <circle cx="335" cy="99" r="16" fill="none" stroke={`url(#${gradId})`} strokeWidth="16" />
+      <text y="122" x="380" fontFamily="'Poppins','Century Gothic','Trebuchet MS',sans-serif" fontWeight="800" fontSize="64" fill={COLORS.paper}>G</text>
+      <circle cx="460" cy="99" r="16" fill="none" stroke={`url(#${gradId})`} strokeWidth="16" />
     </svg>
   );
 }
@@ -2311,10 +2338,7 @@ function AuthShell({ children }) {
       <div style={{ width: "100%", maxWidth: 380, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 28 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, justifyContent: "center" }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, overflow: "hidden", display: "flex", flexShrink: 0 }}><ProgoMark size={38} mode="dark" /></div>
-          <div>
-            <p style={{ ...fontDisplay, fontSize: 17, fontWeight: 700, margin: 0 }}>PROGO</p>
-            <p style={{ ...fontBody, fontSize: 11, color: COLORS.muted, margin: 0 }}>by JC CREW</p>
-          </div>
+          <ProgoWordmark height={18} mode="dark" />
         </div>
         {children}
       </div>
@@ -2914,16 +2938,13 @@ export default function App() {
   const brand = size => (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <div style={{ width: size, height: size, borderRadius: size >= 34 ? 9 : 8, overflow: "hidden", flexShrink: 0, display: "flex" }}><ProgoMark size={size} mode={mode} /></div>
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <p style={{ ...fontDisplay, fontSize: size >= 34 ? 15 : 14, fontWeight: 700, margin: 0 }}>PROGO</p>
-          {isAdmin && (
-            <span style={{ ...fontMono, display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: COLORS.gold, background: COLORS.gold + "1c", padding: "2px 6px", borderRadius: 20, letterSpacing: 0.3 }}>
-              <ShieldCheck size={10} /> FUNDADOR
-            </span>
-          )}
-        </div>
-        {size >= 34 && <p style={{ ...fontBody, fontSize: 11, color: COLORS.muted, margin: 0 }}>by JC CREW</p>}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <ProgoWordmark height={size >= 34 ? 16 : 14} mode={mode} />
+        {isAdmin && (
+          <span style={{ ...fontMono, display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: COLORS.gold, background: COLORS.gold + "1c", padding: "2px 6px", borderRadius: 20, letterSpacing: 0.3 }}>
+            <ShieldCheck size={10} /> FUNDADOR
+          </span>
+        )}
       </div>
     </div>
   );
