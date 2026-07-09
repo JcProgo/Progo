@@ -52,9 +52,9 @@ Excepciones deliberadas a "guardar en cada cambio":
 | `activity_completions` | ✅ Sí |
 | `journals` | ✅ Sí |
 | `trades` | ✅ Sí |
-| `egresos` | ❌ **NO** — tabla nueva de esta sesión, ver aviso abajo |
+| `egresos` | ✅ Sí (confirmado en vivo tras correr `supabase/schema.sql`) |
 
-**⚠️ ACCIÓN PENDIENTE:** el módulo de Egresos (código ya escrito en `App.jsx`, ver §6) depende de la tabla `egresos`, que **todavía no existe en la base real**. Hasta que se corra el SQL, la pestaña "Egresos" de Ingresos y saldos fallará al guardar (`PGRST205`). Correr `supabase/schema.sql` completo en el SQL Editor de Supabase — es idempotente (usa `if not exists` en todo), así que en una base que ya tiene el resto del esquema solo creará la tabla `egresos` nueva; no duplica ni rompe nada existente.
+**✅ RESUELTO:** el usuario corrió `supabase/schema.sql` y se verificó en vivo (`HTTP 200` contra `/rest/v1/egresos`) que la tabla existe. El módulo de Egresos ya puede persistir de punta a punta. No queda ninguna tabla pendiente de crear.
 
 ### Archivo SQL en el repo
 
@@ -106,7 +106,6 @@ Dashboard general: gastos del mes, tareas completadas hoy, productos ganadores, 
 ### Ingresos y saldos
 - Tabs "Ingresos" / "Egresos" (componente `MOVEMENT_KIND_META`, mismo patrón de tabs que Tareas) sobre las mismas tarjetas de estadísticas: ingresos totales, egresos totales, **saldo actual = ingresos − egresos** (ya no es un placeholder "próximamente"), ingresos del mes, egresos del mes.
 - CRUD completo para ambos tipos (tablas `incomes` y `egresos`, mismas columnas: `amount`, `concept`, `category`, `note`, y `income_date`/`expense_date` respectivamente) con validación (monto > 0, concepto obligatorio), confirmación inline antes de eliminar, mensajes de éxito/error, estados vacío/carga.
-- **Pendiente correr SQL** para la tabla `egresos` — ver aviso en §3.
 
 ### Metas
 - 4 timeframes (diario/semanal/mensual/trimestral), CRUD completo persistido.
@@ -167,16 +166,15 @@ No hay ninguna otra variable de entorno ni secreto en el proyecto. El token pers
 
 ## 9. Errores pendientes / riesgos conocidos
 
-1. **Falta correr `supabase/schema.sql` para la tabla `egresos`** (nueva, ver §3) — hasta entonces la pestaña "Egresos" fallará al guardar con `PGRST205`. El resto del esquema ya existe y `schema.sql` es idempotente, así que correrlo de nuevo es seguro.
-2. **Ningún flujo fue probado end-to-end por el asistente con login real** — ni la persistencia previa (~8 tablas) ni el nuevo módulo de Egresos, code-splitting de Recharts, o remoción del selector de idioma pasaron por un click real de "usar la app" hecho por el asistente (política de seguridad: nunca se entran contraseñas). Todo pasó build+lint+revisión de código línea por línea, incluyendo verificar a mano que cada columna escrita coincide con `schema.sql`. Recomendado: el usuario debería probar cada sección una vez, especialmente Ingresos y saldos con ambas pestañas, después de correr el SQL pendiente.
-3. **`git config` de commits usa nombre/email autodetectados** (`juanchaverra@MacBook-Air-de-Juan.local`) en vez de un nombre real configurado — cosmético, no rompe nada.
-4. **Bundle inicial sigue por encima de 500KB** (bajó de ~870KB a ~521KB tras sacar Recharts a un chunk separado cargado bajo demanda; el chunk de Recharts en sí también supera 500KB, así que Vite sigue avisando en el build). No es un bug — solo queda como posible optimización futura si el proyecto sigue creciendo (ej. tree-shaking más agresivo de `lucide-react`, o extraer más secciones a módulos separados).
+1. **Ningún flujo fue probado end-to-end por el asistente con login real** — ni la persistencia previa (~8 tablas) ni el nuevo módulo de Egresos, code-splitting de Recharts, o remoción del selector de idioma pasaron por un click real de "usar la app" hecho por el asistente (política de seguridad: nunca se entran contraseñas). Todo pasó build+lint+revisión de código línea por línea, incluyendo verificar a mano que cada columna escrita coincide con `schema.sql`, y que la tabla `egresos` existe en vivo (`HTTP 200` en `/rest/v1/egresos`, confirmado 2026-07-09 tras correr el SQL). Recomendado: el usuario debería probar cada sección una vez, especialmente Ingresos y saldos con ambas pestañas.
+2. **`git config` de commits usa nombre/email autodetectados** (`juanchaverra@MacBook-Air-de-Juan.local`) en vez de un nombre real configurado — cosmético, no rompe nada.
+3. **Bundle inicial sigue por encima de 500KB** (bajó de ~870KB a ~521KB tras sacar Recharts a un chunk separado cargado bajo demanda; el chunk de Recharts en sí también supera 500KB, así que Vite sigue avisando en el build). No es un bug — solo queda como posible optimización futura si el proyecto sigue creciendo (ej. tree-shaking más agresivo de `lucide-react`, o extraer más secciones a módulos separados).
 
 ---
 
 ## 10. Próximos pasos sugeridos (no empezados)
 
-- Correr `supabase/schema.sql` en Supabase para crear la tabla `egresos` y luego probar la pestaña "Egresos" en Ingresos y saldos (guardar → recargar → sigue ahí).
+- Probar Ingresos y saldos con datos reales (ambas pestañas: registrar, editar, eliminar un ingreso y un egreso, confirmar que el saldo se actualiza y que sigue ahí tras recargar).
 - Considerar mover las funciones CRUD de `App()` (que ya son ~28 funciones) a un hook custom o módulo aparte (`useProgoData.js`) si `App.jsx` sigue creciendo — hoy funciona pero el archivo es monolítico (~2950 líneas).
 - Si se decide invertir en internacionalización real (el selector de idioma se retiró por decorativo, ver §8), sería un proyecto aparte: extraer todas las cadenas hardcodeadas en español a un diccionario.
 
