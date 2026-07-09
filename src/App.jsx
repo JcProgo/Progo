@@ -127,6 +127,28 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
+// 100dvh no es confiable dentro de una PWA instalada en iOS (el alto real
+// termina desfasado del que reporta el navegador), así que medimos el alto
+// visible directamente por JS en vez de depender de la unidad CSS.
+function useViewportHeight() {
+  const [height, setHeight] = useState(() =>
+    typeof window !== "undefined" ? (window.visualViewport?.height || window.innerHeight) : 0
+  );
+  useEffect(() => {
+    function update() { setHeight(window.visualViewport?.height || window.innerHeight); }
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    window.visualViewport?.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+      window.visualViewport?.removeEventListener("resize", update);
+    };
+  }, []);
+  return height;
+}
+
 const MONTH_LABEL = "Julio 2026";
 const CAL_YEAR = 2026;
 const CAL_MONTH = 6; // 0-indexed = julio
@@ -2331,9 +2353,10 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
 --------------------------------------------------------- */
 
 function AuthShell({ children }) {
+  const viewportHeight = useViewportHeight();
   return (
     <div style={{
-      ...fontBody, height: "100dvh", overflowY: "auto", background: COLORS.ink, color: COLORS.paper, display: "flex", alignItems: "center", justifyContent: "center",
+      ...fontBody, height: viewportHeight ? `${viewportHeight}px` : "100dvh", overflowY: "auto", background: COLORS.ink, color: COLORS.paper, display: "flex", alignItems: "center", justifyContent: "center",
       paddingTop: "max(20px, env(safe-area-inset-top, 0px))", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))",
       paddingLeft: "max(20px, env(safe-area-inset-left, 0px))", paddingRight: "max(20px, env(safe-area-inset-right, 0px))",
     }}>
@@ -2565,6 +2588,7 @@ export default function App() {
   const [egresos, setEgresos] = useState([]);
   const [financeLoading, setFinanceLoading] = useState(true);
   const isMobile = useIsMobile();
+  const viewportHeight = useViewportHeight();
 
   useEffect(() => {
     // El fondo de <body>/meta theme-color es el que se ve en cualquier
@@ -2963,7 +2987,7 @@ export default function App() {
   );
 
   return (
-    <div style={{ ...fontBody, display: "flex", flexDirection: isMobile ? "column" : "row", height: "100dvh", background: COLORS.ink, color: COLORS.paper }}>
+    <div style={{ ...fontBody, display: "flex", flexDirection: isMobile ? "column" : "row", height: viewportHeight ? `${viewportHeight}px` : "100dvh", background: COLORS.ink, color: COLORS.paper }}>
       {isMobile ? (
         <>
           <div style={{
