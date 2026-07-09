@@ -2952,7 +2952,7 @@ export default function App() {
   );
 
   return (
-    <div style={{ ...fontBody, display: "flex", flexDirection: isMobile ? "column" : "row", height: "100dvh", background: COLORS.ink, color: COLORS.paper, overflow: "hidden" }}>
+    <div style={{ ...fontBody, display: "flex", flexDirection: isMobile ? "column" : "row", height: "100dvh", background: COLORS.ink, color: COLORS.paper }}>
       {isMobile ? (
         <>
           <div style={{
