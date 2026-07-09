@@ -187,20 +187,22 @@ const STATUS_META = {
 function ProgoMark({ size = 34, mode = "dark" }) {
   const gradId = `progoMarkGrad-${mode}`;
   const stops = mode === "dark"
-    ? ["#0F2049", "#2B6DF0"]
-    : ["#0F2E9E", "#3E7BFF"];
+    ? ["#0A2540", "#4FC3F7"] // logo azul
+    : ["#FF6B00", "#FFD200"]; // logo naranja
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="24" height="24" rx="7" fill={`url(#${gradId})`} />
-      <ellipse cx="7.5" cy="6" rx="7" ry="5" fill="#fff" opacity="0.1" />
-      <rect x="7" y="5" width="4" height="14" rx="2" fill="#fff" />
-      <path d="M11 5L15 5Q16.4 5 17 5.9L20 9L17 12.1Q16.4 13 15 13L11 13Z" fill="#fff" />
+    <svg width={size} height={size} viewBox="20 30 140 140" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-          <stop stopColor={stops[0]} />
-          <stop offset="1" stopColor={stops[1]} />
+        <linearGradient id={gradId} x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor={stops[0]} />
+          <stop offset="100%" stopColor={stops[1]} />
         </linearGradient>
       </defs>
+      <rect x="20" y="30" width="140" height="140" rx="32" fill={`url(#${gradId})`} />
+      <rect x="50" y="120" width="18" height="30" rx="6" fill="#FFFFFF" />
+      <rect x="78" y="100" width="18" height="50" rx="6" fill="#FFFFFF" />
+      <rect x="106" y="75" width="18" height="75" rx="6" fill="#FFFFFF" />
+      <path d="M128 68 L150 46 M150 46 L150 60 M150 46 L136 46"
+            stroke="#FFFFFF" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
   );
 }
