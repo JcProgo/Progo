@@ -5,7 +5,7 @@ import {
   Plus, Trash2, ChevronRight, TrendingUp, TrendingDown, Coffee,
   UtensilsCrossed, ShoppingCart, Car, Home as HomeIcon, Zap,
   HeartPulse, ShoppingBag, Trash, GraduationCap, MoreHorizontal, Check,
-  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, Menu, LogOut, Users, ShieldCheck, Globe, Pencil
+  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, Menu, LogOut, Users, ShieldCheck, Globe, Pencil, PiggyBank
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -513,6 +513,26 @@ function inputStyle() {
    METAS
 --------------------------------------------------------- */
 
+// Mapea una fila de la tabla `goals` (snake_case) al shape que usa la UI (camelCase)
+function rowToGoal(row) {
+  return {
+    id: row.id, title: row.title, done: row.done, progress: row.progress, target: row.target, money: row.money,
+    goalType: row.goal_type || "standard", financialTarget: row.financial_target, financialStartDate: row.financial_start_date,
+  };
+}
+
+// Lógica centralizada: ingresos aplicables a una meta financiera (desde su fecha inicial) y el % de avance resultante.
+// Única fuente de verdad — usada en Metas para renderizar el progreso, nunca se guarda un valor duplicado.
+function computeFinancialApplicable(incomes, goal) {
+  return incomes
+    .filter(i => !goal.financialStartDate || i.income_date >= goal.financialStartDate)
+    .reduce((s, i) => s + Number(i.amount), 0);
+}
+function computeFinancialProgress(incomes, goal) {
+  if (!goal.financialTarget) return 0;
+  return Math.min(100, (computeFinancialApplicable(incomes, goal) / goal.financialTarget) * 100);
+}
+
 const TIMEFRAME_META = {
   diario: { label: "Diario", get color() { return COLORS.gold; } },
   semanal: { label: "Semanal", get color() { return COLORS.teal; } },
@@ -532,47 +552,76 @@ function Ring({ pct, color, size = 64 }) {
   );
 }
 
-function Metas({ goals, setGoals }) {
+function Metas({ goals, setGoals, incomes, insertGoalRow, patchGoalRow, deleteGoalRow, financeLoading }) {
   const [tab, setTab] = useState("diario");
-  const [form, setForm] = useState({ title: "", target: "", money: false });
+  const [form, setForm] = useState({ title: "", target: "", money: false, financial: false, financialStartDate: isoDateLocal(new Date()) });
   const [editingId, setEditingId] = useState(null);
   const meta = TIMEFRAME_META[tab];
   const list = goals[tab];
   const isDiario = tab === "diario";
 
   function toggleDaily(id) {
-    setGoals(prev => ({ ...prev, diario: prev.diario.map(g => g.id === id ? { ...g, done: !g.done } : g) }));
+    const g = goals.diario.find(x => x.id === id);
+    if (!g) return;
+    const done = !g.done;
+    setGoals(prev => ({ ...prev, diario: prev.diario.map(x => x.id === id ? { ...x, done } : x) }));
+    patchGoalRow(id, { done });
   }
   function removeGoal(id) {
     setGoals(prev => ({ ...prev, [tab]: prev[tab].filter(g => g.id !== id) }));
+    deleteGoalRow(id);
     if (editingId === id) cancelEdit();
   }
   function updateProgress(id, value) {
-    setGoals(prev => ({
-      ...prev,
-      [tab]: prev[tab].map(g => g.id === id ? { ...g, progress: Math.max(0, Math.min(g.target, value)) } : g)
-    }));
+    const g = list.find(x => x.id === id);
+    if (!g) return;
+    const progress = Math.max(0, Math.min(g.target, value));
+    setGoals(prev => ({ ...prev, [tab]: prev[tab].map(x => x.id === id ? { ...x, progress } : x) }));
+    patchGoalRow(id, { progress });
   }
   function startEditGoal(g) {
     setEditingId(g.id);
-    setForm({ title: g.title, target: g.target ? String(g.target) : "", money: !!g.money });
+    const isFinancial = g.goalType === "financial";
+    setForm({
+      title: g.title,
+      target: isFinancial ? (g.financialTarget ? String(g.financialTarget) : "") : (g.target ? String(g.target) : ""),
+      money: !!g.money,
+      financial: isFinancial,
+      financialStartDate: g.financialStartDate || isoDateLocal(new Date()),
+    });
   }
-  function cancelEdit() { setEditingId(null); setForm({ title: "", target: "", money: false }); }
-  function addGoal() {
+  function cancelEdit() { setEditingId(null); setForm({ title: "", target: "", money: false, financial: false, financialStartDate: isoDateLocal(new Date()) }); }
+  async function addGoal() {
     if (!form.title.trim()) return;
     if (isDiario) {
       if (editingId) {
         setGoals(prev => ({ ...prev, diario: prev.diario.map(g => g.id === editingId ? { ...g, title: form.title } : g) }));
+        patchGoalRow(editingId, { title: form.title });
       } else {
-        setGoals(prev => ({ ...prev, diario: [...prev.diario, { id: Date.now(), title: form.title, done: false }] }));
+        const created = await insertGoalRow("diario", { title: form.title, done: false });
+        if (created) setGoals(prev => ({ ...prev, diario: [...prev.diario, created] }));
+      }
+    } else if (form.financial) {
+      const target = Number(form.target);
+      if (!target || target <= 0 || !form.financialStartDate) return;
+      if (editingId) {
+        setGoals(prev => ({ ...prev, [tab]: prev[tab].map(g => g.id === editingId ? { ...g, title: form.title, goalType: "financial", financialTarget: target, financialStartDate: form.financialStartDate, target: null, progress: null } : g) }));
+        patchGoalRow(editingId, { goalType: "financial", title: form.title, financialTarget: target, financialStartDate: form.financialStartDate, target: null, progress: null });
+      } else {
+        const created = await insertGoalRow(tab, { title: form.title, goalType: "financial", financialTarget: target, financialStartDate: form.financialStartDate, money: true });
+        if (created) setGoals(prev => ({ ...prev, [tab]: [...prev[tab], created] }));
       }
     } else {
       const target = Number(form.target);
       if (!target || target <= 0) return;
       if (editingId) {
-        setGoals(prev => ({ ...prev, [tab]: prev[tab].map(g => g.id === editingId ? { ...g, title: form.title, target, money: form.money, progress: Math.min(g.progress, target) } : g) }));
+        const g = list.find(x => x.id === editingId);
+        const progress = Math.min(g?.goalType === "financial" ? 0 : (g?.progress || 0), target);
+        setGoals(prev => ({ ...prev, [tab]: prev[tab].map(x => x.id === editingId ? { ...x, title: form.title, goalType: "standard", target, money: form.money, progress, financialTarget: null, financialStartDate: null } : x) }));
+        patchGoalRow(editingId, { goalType: "standard", title: form.title, target, money: form.money, progress, financialTarget: null, financialStartDate: null });
       } else {
-        setGoals(prev => ({ ...prev, [tab]: [...prev[tab], { id: Date.now(), title: form.title, progress: 0, target, money: form.money }] }));
+        const created = await insertGoalRow(tab, { title: form.title, progress: 0, target, money: form.money });
+        if (created) setGoals(prev => ({ ...prev, [tab]: [...prev[tab], created] }));
       }
     }
     cancelEdit();
@@ -593,24 +642,41 @@ function Metas({ goals, setGoals }) {
         ))}
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+      {financeLoading ? (
+        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5 }}>Cargando metas…</p>
+      ) : (
+      <>
+      <div style={{ display: "flex", gap: 8, marginBottom: !isDiario && form.financial ? 10 : 20, flexWrap: "wrap" }}>
         <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
           onKeyDown={e => e.key === "Enter" && addGoal()}
           placeholder={`Nueva meta ${meta.label.toLowerCase()}`} style={{ ...inputStyle(), marginBottom: 0, flex: 1, minWidth: 180 }} />
         {!isDiario && (
           <input type="number" value={form.target} onChange={e => setForm({ ...form, target: e.target.value })}
             onKeyDown={e => e.key === "Enter" && addGoal()}
-            placeholder={form.money ? "Monto meta" : "Cantidad meta"} style={{ ...inputStyle(), marginBottom: 0, width: 150 }} />
+            placeholder={form.financial || form.money ? "Monto meta" : "Cantidad meta"} style={{ ...inputStyle(), marginBottom: 0, width: 150 }} />
         )}
-        {!isDiario && (
+        {!isDiario && !form.financial && (
           <label style={{ display: "flex", alignItems: "center", gap: 6, ...fontBody, fontSize: 13, color: COLORS.muted, whiteSpace: "nowrap" }}>
             <input type="checkbox" checked={form.money} onChange={e => setForm({ ...form, money: e.target.checked })} />
             Es dinero
           </label>
         )}
+        {!isDiario && (
+          <label style={{ display: "flex", alignItems: "center", gap: 6, ...fontBody, fontSize: 13, color: COLORS.muted, whiteSpace: "nowrap" }}>
+            <input type="checkbox" checked={form.financial} onChange={e => setForm({ ...form, financial: e.target.checked })} />
+            Meta financiera
+          </label>
+        )}
         <PrimaryButton onClick={addGoal} accent={meta.color}>{editingId ? <><Check size={16} /> Guardar</> : <><Plus size={16} /> Agregar</>}</PrimaryButton>
         {editingId && <button onClick={cancelEdit} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>}
       </div>
+
+      {!isDiario && form.financial && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+          <label style={{ ...fontBody, fontSize: 13, color: COLORS.muted, whiteSpace: "nowrap" }}>Ingresos aplicables desde</label>
+          <input type="date" value={form.financialStartDate} onChange={e => setForm({ ...form, financialStartDate: e.target.value })} style={{ ...inputStyle(), marginBottom: 0, width: 160 }} />
+        </div>
+      )}
 
       {isDiario ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -635,7 +701,9 @@ function Metas({ goals, setGoals }) {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
           {list.map(g => {
-            const pct = g.target ? g.progress / g.target : 0;
+            const isFinancial = g.goalType === "financial";
+            const applicable = isFinancial ? computeFinancialApplicable(incomes, g) : 0;
+            const pct = isFinancial ? computeFinancialProgress(incomes, g) / 100 : (g.target ? g.progress / g.target : 0);
             return (
               <div key={g.id} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, display: "flex", gap: 16, alignItems: "center" }}>
                 <div style={{ position: "relative", width: 64, height: 64, flexShrink: 0 }}>
@@ -646,24 +714,187 @@ function Metas({ goals, setGoals }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                    <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14.5, fontWeight: 500, margin: "0 0 6px" }}>{g.title}</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14.5, fontWeight: 500, margin: "0 0 6px" }}>{g.title}</p>
+                    </div>
                     <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                       <button onClick={() => startEditGoal(g)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><Pencil size={14} /></button>
                       <button onClick={() => removeGoal(g.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><X size={15} /></button>
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input type="number" value={g.progress} onChange={e => updateProgress(g.id, Number(e.target.value))} style={{
-                      ...fontMono, width: 110, background: COLORS.elevated, border: `1px solid ${COLORS.border}`,
-                      borderRadius: 6, padding: "6px 8px", color: COLORS.paper, fontSize: 12.5, outline: "none",
-                    }} />
-                    <span style={{ ...fontMono, color: COLORS.muted, fontSize: 12.5 }}>/ {g.money ? fmtCOP(g.target) : g.target}</span>
-                  </div>
+                  {isFinancial ? (
+                    <>
+                      <p style={{ ...fontMono, color: COLORS.muted, fontSize: 12.5, margin: "0 0 2px" }}>{fmtCOP(applicable)} / {fmtCOP(g.financialTarget)}</p>
+                      <p style={{ ...fontBody, color: COLORS.muted, fontSize: 11, margin: 0 }}>
+                        {pct >= 1 ? "¡Meta alcanzada! · " : ""}Desde {g.financialStartDate}
+                      </p>
+                    </>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input type="number" value={g.progress} onChange={e => updateProgress(g.id, Number(e.target.value))} style={{
+                        ...fontMono, width: 110, background: COLORS.elevated, border: `1px solid ${COLORS.border}`,
+                        borderRadius: 6, padding: "6px 8px", color: COLORS.paper, fontSize: 12.5, outline: "none",
+                      }} />
+                      <span style={{ ...fontMono, color: COLORS.muted, fontSize: 12.5 }}>/ {g.money ? fmtCOP(g.target) : g.target}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
           {list.length === 0 && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5 }}>No hay metas {meta.label.toLowerCase()}es todavía.</p>}
+        </div>
+      )}
+      </>
+      )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
+   INGRESOS Y SALDOS
+--------------------------------------------------------- */
+
+function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, financeLoading }) {
+  const todayISO = isoDateLocal(new Date());
+  const monthPrefix = todayISO.slice(0, 7);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState({ amount: "", concept: "", date: todayISO, category: "", note: "" });
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  const totalIncome = incomes.reduce((s, i) => s + Number(i.amount), 0);
+  const saldoActual = totalIncome; // por ahora saldo = ingresos; cuando exista un módulo de egresos, saldo = ingresos - egresos
+  const monthIncome = incomes.filter(i => i.income_date.startsWith(monthPrefix)).reduce((s, i) => s + Number(i.amount), 0);
+  const todayIncome = incomes.filter(i => i.income_date === todayISO).reduce((s, i) => s + Number(i.amount), 0);
+
+  function openNew() {
+    setEditingId(null);
+    setForm({ amount: "", concept: "", date: todayISO, category: "", note: "" });
+    setError("");
+    setModalOpen(true);
+  }
+  function openEdit(i) {
+    setEditingId(i.id);
+    setForm({ amount: String(i.amount), concept: i.concept, date: i.income_date, category: i.category || "", note: i.note || "" });
+    setError("");
+    setModalOpen(true);
+  }
+  function closeModal() { setModalOpen(false); setError(""); }
+
+  async function handleSubmit() {
+    const amount = Number(form.amount);
+    if (!amount || amount <= 0) { setError("El monto debe ser mayor a 0."); return; }
+    if (!form.concept.trim()) { setError("El concepto es obligatorio."); return; }
+    if (!form.date) { setError("La fecha es obligatoria."); return; }
+    setSaving(true);
+    setError("");
+    const payload = { amount, concept: form.concept.trim(), date: form.date, category: form.category.trim(), note: form.note.trim() };
+    const { error: err } = editingId ? await editIncome(editingId, payload) : await addIncome(payload);
+    setSaving(false);
+    if (err) { setError(err.message || "No se pudo guardar el ingreso."); return; }
+    setNotice(editingId ? "Ingreso actualizado." : "Ingreso registrado.");
+    setTimeout(() => setNotice(""), 3000);
+    setModalOpen(false);
+  }
+
+  async function handleDelete(id) {
+    const { error: err } = await deleteIncome(id);
+    if (err) { setError(err.message || "No se pudo eliminar el ingreso."); }
+    setConfirmDeleteId(null);
+  }
+
+  const sorted = [...incomes].sort((a, b) => b.income_date.localeCompare(a.income_date) || b.id - a.id);
+
+  return (
+    <div>
+      <SectionHeader icon={PiggyBank} title="Ingresos y saldos" subtitle="Control básico de tus ingresos y tu saldo" accent={COLORS.teal}
+        right={<PrimaryButton onClick={openNew} accent={COLORS.teal}><Plus size={16} /> Registrar ingreso</PrimaryButton>}
+      />
+
+      {financeLoading ? (
+        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5 }}>Cargando ingresos…</p>
+      ) : (
+      <>
+      {notice && <p style={{ ...fontBody, color: COLORS.teal, fontSize: 13, margin: "0 0 14px" }}>{notice}</p>}
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 24 }}>
+        <StatCard label="Ingresos totales" value={fmtCOP(totalIncome)} sub={`${incomes.length} registros`} accent={COLORS.teal} />
+        <StatCard label="Saldo actual" value={fmtCOP(saldoActual)} sub="Ingresos - egresos (próximamente)" accent={COLORS.gold} />
+        <StatCard label="Total de ingresos registrados" value={incomes.length} sub="Registros históricos" accent={COLORS.violet} />
+        <StatCard label="Ingresos del mes" value={fmtCOP(monthIncome)} sub={monthPrefix} accent={COLORS.teal} />
+        <StatCard label="Ingresos de hoy" value={fmtCOP(todayIncome)} sub={todayISO} accent={COLORS.coral} />
+      </div>
+
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
+        {sorted.length === 0 ? (
+          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, padding: 20 }}>No hay ingresos registrados todavía.</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 640 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 24px 24px", gap: 16, padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
+                {["Concepto", "Fecha", "Categoría", "Monto", "", ""].map((h, i) => (
+                  <span key={i} style={{ ...fontBody, color: COLORS.muted, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, whiteSpace: "nowrap" }}>{h}</span>
+                ))}
+              </div>
+              {sorted.map(inc => (
+                <div key={inc.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 24px 24px", gap: 16, padding: "14px 20px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14, fontWeight: 500, margin: 0 }}>{inc.concept}</p>
+                    {inc.note && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12, margin: "3px 0 0" }}>{inc.note}</p>}
+                  </div>
+                  <span style={{ ...fontMono, color: COLORS.muted, fontSize: 13, whiteSpace: "nowrap" }}>{inc.income_date}</span>
+                  <span style={{ ...fontMono, color: COLORS.muted, fontSize: 13, whiteSpace: "nowrap" }}>{inc.category || "—"}</span>
+                  <span style={{ ...fontMono, color: COLORS.teal, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>{fmtCOP(inc.amount)}</span>
+                  {confirmDeleteId === inc.id ? (
+                    <div style={{ gridColumn: "5 / 7", display: "flex", gap: 6, alignItems: "center", justifySelf: "end" }}>
+                      <span style={{ ...fontBody, fontSize: 12, color: COLORS.muted, whiteSpace: "nowrap" }}>¿Eliminar?</span>
+                      <button onClick={() => handleDelete(inc.id)} style={{ ...fontBody, fontSize: 12, fontWeight: 600, color: COLORS.coral, background: "none", border: "none", cursor: "pointer" }}>Sí</button>
+                      <button onClick={() => setConfirmDeleteId(null)} style={{ ...fontBody, fontSize: 12, color: COLORS.muted, background: "none", border: "none", cursor: "pointer" }}>No</button>
+                    </div>
+                  ) : (
+                    <>
+                      <button onClick={() => openEdit(inc)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><Pencil size={13} /></button>
+                      <button onClick={() => setConfirmDeleteId(inc.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><X size={14} /></button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      </>
+      )}
+
+      {modalOpen && (
+        <div onClick={closeModal} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(8,10,14,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, maxHeight: "85vh", overflowY: "auto" }}>
+            <p style={{ ...fontDisplay, color: COLORS.paper, fontSize: 17, fontWeight: 700, margin: "0 0 16px" }}>{editingId ? "Editar ingreso" : "Registrar ingreso"}</p>
+
+            <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Monto</label>
+            <input type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" style={inputStyle()} autoFocus />
+            <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Concepto</label>
+            <input value={form.concept} onChange={e => setForm({ ...form, concept: e.target.value })} placeholder="Ej. Venta tienda" style={inputStyle()} />
+            <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Fecha</label>
+            <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={inputStyle()} />
+            <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Categoría (opcional)</label>
+            <input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="Ej. Dropshipping" style={inputStyle()} />
+            <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Nota (opcional)</label>
+            <textarea value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} style={{ ...inputStyle(), minHeight: 60, resize: "vertical" }} />
+
+            {error && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 12.5, margin: "0 0 12px" }}>{error}</p>}
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <PrimaryButton onClick={handleSubmit} accent={COLORS.teal}>
+                {saving ? "Guardando…" : <><Check size={16} /> {editingId ? "Guardar cambios" : "Registrar ingreso"}</>}
+              </PrimaryButton>
+              <button onClick={closeModal} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -1125,7 +1356,7 @@ function fmtDuration(min) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-function Rutina({ activities, setActivities, completions, setCompletions, journals, setJournals, tasks, setTasks, habits, setHabits, goals, setGoals }) {
+function Rutina({ activities, setActivities, completions, setCompletions, journals, setJournals, tasks, setTasks, habits, setHabits, goals, setGoals, patchGoalRow }) {
   const todayISO = isoDateLocal(new Date());
   const [viewMode, setViewMode] = useState("dia");
   const [selectedDate, setSelectedDate] = useState(todayISO);
@@ -1167,7 +1398,13 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
     if (a.source) {
       if (a.source.kind === "tarea") { setTasks(prev => ({ ...prev, diario: prev.diario.map(t => t.id === a.source.id ? { ...t, done: !t.done } : t) })); return; }
       if (a.source.kind === "habito") { setHabits(prev => prev.map(h => h.id === a.source.id ? { ...h, history: { ...h.history, [ds]: h.history[ds] ? 0 : 1 } } : h)); return; }
-      if (a.source.kind === "meta") { setGoals(prev => ({ ...prev, diario: prev.diario.map(g => g.id === a.source.id ? { ...g, done: !g.done } : g) })); return; }
+      if (a.source.kind === "meta") {
+        const g = goals.diario.find(x => x.id === a.source.id);
+        const done = !g?.done;
+        setGoals(prev => ({ ...prev, diario: prev.diario.map(x => x.id === a.source.id ? { ...x, done } : x) }));
+        patchGoalRow(a.source.id, { done });
+        return;
+      }
     }
     setCompletions(prev => ({ ...prev, [`${a.id}|${ds}`]: !prev[`${a.id}|${ds}`] }));
   }
@@ -2000,6 +2237,7 @@ function Usuarios({ myId }) {
 const NAV = [
   { key: "resumen", label: "Resumen", icon: LayoutGrid, get accent() { return COLORS.gold; } },
   { key: "gastos", label: "Gastos", icon: Wallet, get accent() { return COLORS.coral; } },
+  { key: "ingresos", label: "Ingresos y saldos", icon: PiggyBank, get accent() { return COLORS.teal; } },
   { key: "metas", label: "Metas", icon: Target, get accent() { return COLORS.violet; } },
   { key: "rutina", label: "Rutina", icon: Calendar, get accent() { return COLORS.teal; } },
   { key: "trading", label: "Trading", icon: TrendingUp, get accent() { return COLORS.teal; } },
@@ -2071,7 +2309,33 @@ export default function App() {
   const [accountSize, setAccountSize] = useState(10000);
   const [language, setLanguage] = useState("es");
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [incomes, setIncomes] = useState([]);
+  const [financeLoading, setFinanceLoading] = useState(true);
   const isMobile = useIsMobile();
+
+  useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+    setFinanceLoading(true);
+    (async () => {
+      const [goalsRes, incomesRes] = await Promise.all([
+        supabase.from("goals").select("*").order("id", { ascending: true }),
+        supabase.from("incomes").select("*").order("income_date", { ascending: false }).order("id", { ascending: false }),
+      ]);
+      if (cancelled) return;
+      if (!goalsRes.error) {
+        const grouped = { diario: [], semanal: [], mensual: [], trimestral: [] };
+        (goalsRes.data || []).forEach(row => { if (grouped[row.timeframe]) grouped[row.timeframe].push(rowToGoal(row)); });
+        setGoals(grouped);
+      } else {
+        console.error("Error cargando metas:", goalsRes.error.message);
+      }
+      if (!incomesRes.error) setIncomes(incomesRes.data || []);
+      else console.error("Error cargando ingresos:", incomesRes.error.message);
+      setFinanceLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [profile]);
 
   Object.assign(COLORS, mode === "dark" ? DARK_THEME : LIGHT_THEME);
 
@@ -2091,6 +2355,66 @@ export default function App() {
   if (profileLoading || !profile) return <AuthShell><p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, textAlign: "center", margin: 0 }}>Cargando tu perfil…</p></AuthShell>;
 
   function selectView(key) { setView(key); setNavOpen(false); }
+
+  // --- Persistencia de Metas (tabla `goals`) ---
+  async function insertGoalRow(timeframe, payload) {
+    const { data, error } = await supabase.from("goals").insert({
+      user_id: session.user.id, timeframe,
+      title: payload.title,
+      done: payload.done ?? null,
+      progress: payload.progress ?? null,
+      target: payload.target ?? null,
+      money: payload.money ?? false,
+      goal_type: payload.goalType || "standard",
+      financial_target: payload.financialTarget ?? null,
+      financial_start_date: payload.financialStartDate ?? null,
+    }).select().single();
+    if (error) { console.error("Error creando meta:", error.message); return null; }
+    return rowToGoal(data);
+  }
+  async function patchGoalRow(id, patch) {
+    const dbPatch = {};
+    if ("title" in patch) dbPatch.title = patch.title;
+    if ("done" in patch) dbPatch.done = patch.done;
+    if ("progress" in patch) dbPatch.progress = patch.progress;
+    if ("target" in patch) dbPatch.target = patch.target;
+    if ("money" in patch) dbPatch.money = patch.money;
+    if ("goalType" in patch) dbPatch.goal_type = patch.goalType;
+    if ("financialTarget" in patch) dbPatch.financial_target = patch.financialTarget;
+    if ("financialStartDate" in patch) dbPatch.financial_start_date = patch.financialStartDate;
+    const { error } = await supabase.from("goals").update(dbPatch).eq("id", id);
+    if (error) console.error("Error actualizando meta:", error.message);
+  }
+  async function deleteGoalRow(id) {
+    const { error } = await supabase.from("goals").delete().eq("id", id);
+    if (error) console.error("Error eliminando meta:", error.message);
+  }
+
+  // --- Persistencia de Ingresos (tabla `incomes`) — única fuente de verdad para `incomes` ---
+  async function addIncome(payload) {
+    const { data, error } = await supabase.from("incomes").insert({
+      user_id: session.user.id, amount: payload.amount, concept: payload.concept,
+      category: payload.category || null, note: payload.note || null, income_date: payload.date,
+    }).select().single();
+    if (error) return { error };
+    setIncomes(prev => [data, ...prev].sort((a, b) => b.income_date.localeCompare(a.income_date) || b.id - a.id));
+    return { data };
+  }
+  async function editIncome(id, payload) {
+    const { data, error } = await supabase.from("incomes").update({
+      amount: payload.amount, concept: payload.concept,
+      category: payload.category || null, note: payload.note || null, income_date: payload.date,
+    }).eq("id", id).select().single();
+    if (error) return { error };
+    setIncomes(prev => prev.map(i => i.id === id ? data : i).sort((a, b) => b.income_date.localeCompare(a.income_date) || b.id - a.id));
+    return { data };
+  }
+  async function deleteIncome(id) {
+    const { error } = await supabase.from("incomes").delete().eq("id", id);
+    if (error) return { error };
+    setIncomes(prev => prev.filter(i => i.id !== id));
+    return {};
+  }
 
   const isAdmin = profile?.role === "admin";
   const navList = isAdmin
@@ -2239,8 +2563,9 @@ export default function App() {
         )}
         {view === "resumen" && <Resumen expenses={expenses} tasks={tasks} habits={habits} products={products} />}
         {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} />}
-        {view === "metas" && <Metas goals={goals} setGoals={setGoals} />}
-        {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} />}
+        {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} financeLoading={financeLoading} />}
+        {view === "metas" && <Metas goals={goals} setGoals={setGoals} incomes={incomes} insertGoalRow={insertGoalRow} patchGoalRow={patchGoalRow} deleteGoalRow={deleteGoalRow} financeLoading={financeLoading} />}
+        {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} patchGoalRow={patchGoalRow} />}
         {view === "trading" && <Trading trades={trades} setTrades={setTrades} accountSize={accountSize} setAccountSize={setAccountSize} />}
         {view === "tareas" && <Tareas tasks={tasks} setTasks={setTasks} />}
         {view === "habitos" && <Habitos habits={habits} setHabits={setHabits} />}
