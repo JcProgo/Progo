@@ -145,109 +145,15 @@ const CATEGORY_META = {
   "Otros": { icon: MoreHorizontal, get color() { return COLORS.muted; } },
 };
 
-const seedExpenses = [
-  { id: 1, date: "2026-07-01", category: "Comidas por fuera", description: "Almuerzo con proveedores", amount: 45000 },
-  { id: 2, date: "2026-07-02", category: "Supermercado", description: "Mercado semana", amount: 120000 },
-  { id: 3, date: "2026-07-03", category: "Transporte", description: "Uber a bodega", amount: 18000 },
-  { id: 4, date: "2026-07-04", category: "Servicios", description: "Internet oficina", amount: 95000 },
-  { id: 5, date: "2026-07-05", category: "Entretenimiento", description: "Cine", amount: 28000 },
-  { id: 6, date: "2026-07-06", category: "Salud", description: "Droguería", amount: 32000 },
-];
-
 const CAT_LIST = Object.keys(CATEGORY_META);
 
-const seedGoals = {
-  diario: [
-    { id: "d1", title: "Responder mensajes de clientes", done: true },
-    { id: "d2", title: "Publicar 1 anuncio nuevo", done: true },
-    { id: "d3", title: "Revisar métricas del día", done: false },
-  ],
-  semanal: [
-    { id: "s1", title: "Testear 3 productos nuevos", progress: 2, target: 3 },
-    { id: "s2", title: "Cerrar 15 ventas", progress: 9, target: 15 },
-  ],
-  mensual: [
-    { id: "m1", title: "Facturar $8.000.000", progress: 5200000, target: 8000000, money: true },
-    { id: "m2", title: "Conseguir 5 clientes recurrentes", progress: 3, target: 5 },
-  ],
-  trimestral: [
-    { id: "t1", title: "Lanzar segunda marca", progress: 1, target: 3 },
-    { id: "t2", title: "Llegar a $25.000.000 en ventas", progress: 14000000, target: 25000000, money: true },
-  ],
-};
-
-const seedTasks = {
-  diario: [
-    { id: 1, title: "Subir catálogo actualizado", done: true },
-    { id: 2, title: "Responder tickets de soporte", done: true },
-    { id: 3, title: "Grabar creativo para producto ganador", done: false },
-    { id: 4, title: "Pagar proveedor de flete", done: false },
-    { id: 5, title: "Revisar anuncios con bajo ROAS", done: false },
-  ],
-  semanal: [
-    { id: 101, title: "Cerrar reporte de ventas de la semana", done: true },
-    { id: 102, title: "Reunión con proveedor principal", done: false },
-    { id: 103, title: "Actualizar precios en catálogo", done: false },
-  ],
-  mensual: [
-    { id: 201, title: "Cierre contable del mes", done: false },
-    { id: 202, title: "Renovar pauta publicitaria", done: true },
-    { id: 203, title: "Evaluar nuevo proveedor de flete", done: false },
-  ],
-};
-
-const HABIT_DEFS = [
-  { id: 1, name: "Revisar métricas", toneKey: "gold" },
-  { id: 2, name: "Ejercicio", toneKey: "teal" },
-  { id: 3, name: "Leer 20 min", toneKey: "violet" },
-  { id: 4, name: "Sin comida chatarra", toneKey: "coral" },
-];
-
-function buildHabitHistory(habitId, totalDays) {
-  const history = {};
-  for (let d = 1; d <= totalDays; d++) {
-    const score = (d * 7 + habitId * 5) % 9;
-    history[`${CAL_YEAR}-${String(CAL_MONTH + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`] = score < 6 ? 1 : 0;
-  }
-  return history;
-}
-
-const seedHabits = HABIT_DEFS.map(h => ({ ...h, history: buildHabitHistory(h.id, new Date(CAL_YEAR, CAL_MONTH + 1, 0).getDate()) }));
-
 const DAY_LABELS = ["L", "M", "X", "J", "V", "S", "D"];
-
-const seedProducts = [
-  { id: 1, name: "Mini masajeador cervical", testDate: "2026-06-02", investment: 300000, sales: 1250000, status: "Ganador", notes: "ROAS alto, escalar presupuesto" },
-  { id: 2, name: "Organizador de cables magnético", testDate: "2026-06-10", investment: 250000, sales: 180000, status: "Perdedor", notes: "CTR bajo, pausar" },
-  { id: 3, name: "Lámpara de proyección galaxia", testDate: "2026-06-18", investment: 200000, sales: 410000, status: "Ganador", notes: "Buen margen, probar otro público" },
-  { id: 4, name: "Soporte ergonómico laptop", testDate: "2026-07-01", investment: 180000, sales: 90000, status: "En prueba", notes: "Faltan 3 días de data" },
-  { id: 5, name: "Set de cuchillos cerámicos", testDate: "2026-07-03", investment: 220000, sales: 40000, status: "En prueba", notes: "Ajustar creativo" },
-];
 
 const STATUS_META = {
   "Ganador": { get color() { return COLORS.teal; }, get dim() { return COLORS.teal + "22"; } },
   "Perdedor": { get color() { return COLORS.coral; }, get dim() { return COLORS.coral + "22"; } },
   "En prueba": { get color() { return COLORS.gold; }, get dim() { return COLORS.gold + "22"; } },
 };
-
-const seedTrades = [
-  { id: 1, date: "2026-07-01", symbol: "NQ", pnl: -111.50 },
-  { id: 2, date: "2026-07-02", symbol: "NQ", pnl: 200 },
-  { id: 3, date: "2026-07-02", symbol: "ES", pnl: 415.50 },
-  { id: 4, date: "2026-07-02", symbol: "NQ", pnl: -80 },
-  { id: 5, date: "2026-07-06", symbol: "NQ", pnl: -128 },
-  { id: 6, date: "2026-07-08", symbol: "ES", pnl: 5 },
-];
-
-// Rutina — actividades con horario en minutos desde medianoche (isoDateLocal se hoistea)
-const TODAY_ISO = isoDateLocal(new Date());
-
-const seedActivities = [
-  { id: 1, date: TODAY_ISO, title: "Entrenamiento", start: 390, end: 450, type: "movimiento", category: "Salud", description: "", repeat: "diario" },
-  { id: 2, date: TODAY_ISO, title: "Trabajo profundo", start: 480, end: 660, type: "enfoque", category: "Negocio", description: "Bloque principal del día", repeat: "diario" },
-  { id: 3, date: TODAY_ISO, title: "Revisar productos en prueba", start: 840, end: 900, type: "operativo", category: "E-commerce", description: "", repeat: "no" },
-  { id: 4, date: TODAY_ISO, title: "Grabar contenido", start: 960, end: 1050, type: "operativo", category: "Marketing", description: "", repeat: "no" },
-];
 
 /* ---------------------------------------------------------
    Small building blocks
@@ -327,6 +233,13 @@ function Resumen({ expenses, tasks, habits, products }) {
   const totalGastos = expenses.reduce((a, e) => a + e.amount, 0);
   const tareasHechas = tasks.diario.filter(t => t.done).length;
   const ganadores = products.filter(p => p.status === "Ganador").length;
+  const totalDaysInMonth = new Date(CAL_YEAR, CAL_MONTH + 1, 0).getDate();
+  const streaks = habits.map(h => {
+    let s = 0;
+    for (let d = totalDaysInMonth; d >= 1; d--) { if (h.history[dateStr(d)]) s++; else break; }
+    return { name: h.name, streak: s };
+  });
+  const bestStreak = streaks.reduce((best, s) => (!best || s.streak > best.streak) ? s : best, null);
   const chartData = useMemo(() => {
     const byDay = {};
     expenses.forEach(e => { byDay[e.date] = (byDay[e.date] || 0) + e.amount; });
@@ -342,7 +255,7 @@ function Resumen({ expenses, tasks, habits, products }) {
         <StatCard label="Gastos del mes" value={fmtCOP(totalGastos)} sub={`${expenses.length} registros`} accent={COLORS.coral} />
         <StatCard label="Tareas completadas" value={`${tareasHechas}/${tasks.diario.length}`} sub="Hoy" accent={COLORS.gold} />
         <StatCard label="Productos ganadores" value={ganadores} sub={`de ${products.length} testeados`} accent={COLORS.teal} />
-        <StatCard label="Racha más larga" value="6 días" sub="Revisar métricas" accent={COLORS.violet} />
+        <StatCard label="Racha más larga" value={bestStreak ? `${bestStreak.streak} días` : "0 días"} sub={bestStreak ? bestStreak.name : "Sin hábitos aún"} accent={COLORS.violet} />
       </div>
 
       <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "20px 24px" }}>
@@ -801,8 +714,11 @@ function Tareas({ tasks, setTasks }) {
    HÁBITOS
 --------------------------------------------------------- */
 
+const HABIT_TONE_KEYS = ["gold", "teal", "coral", "violet"];
+
 function Habitos({ habits, setHabits }) {
   const [selectedDate, setSelectedDate] = useState(null);
+  const [newHabit, setNewHabit] = useState({ name: "", toneKey: "gold" });
   const { cells, totalDays } = monthMatrix(CAL_YEAR, CAL_MONTH);
   const isMobile = useIsMobile();
 
@@ -811,6 +727,12 @@ function Habitos({ habits, setHabits }) {
       ? { ...h, history: { ...h.history, [ds]: h.history[ds] ? 0 : 1 } }
       : h));
   }
+  function addHabit() {
+    if (!newHabit.name.trim()) return;
+    setHabits(prev => [...prev, { id: Date.now(), name: newHabit.name.trim(), toneKey: newHabit.toneKey, history: {} }]);
+    setNewHabit({ name: "", toneKey: "gold" });
+  }
+  function removeHabit(id) { setHabits(prev => prev.filter(h => h.id !== id)); }
 
   function streakUpTo(history, dayCount) {
     let s = 0;
@@ -850,34 +772,58 @@ function Habitos({ habits, setHabits }) {
         <StatCard label="Días perfectos" value={diasPerfectos} sub={`de ${totalDays} días, todos los hábitos`} accent={COLORS.violet} />
       </div>
 
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "20px 24px", marginBottom: 20, overflowX: "auto" }}>
-        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 14px" }}>Semana actual (1–7 de julio)</p>
-        <div style={{ minWidth: 480 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 34px) 70px", gap: 8, alignItems: "center", marginBottom: 14 }}>
-            <span></span>
-            {DAY_LABELS.map((d, i) => <span key={i} style={{ ...fontMono, textAlign: "center", color: COLORS.muted, fontSize: 12 }}>{d}</span>)}
-            <span style={{ ...fontMono, textAlign: "right", color: COLORS.muted, fontSize: 12 }}>racha</span>
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
+        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Agregar hábito</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
+          <input value={newHabit.name} onChange={e => setNewHabit({ ...newHabit, name: e.target.value })}
+            onKeyDown={e => e.key === "Enter" && addHabit()}
+            placeholder="Ej. Meditar 10 min" style={{ ...inputStyle(), marginBottom: 0, flex: 1, minWidth: 160 }} />
+          <div style={{ display: "flex", gap: 6 }}>
+            {HABIT_TONE_KEYS.map(k => (
+              <div key={k} onClick={() => setNewHabit({ ...newHabit, toneKey: k })} style={{
+                width: 34, height: 34, borderRadius: 8, cursor: "pointer", background: COLORS[k],
+                outline: newHabit.toneKey === k ? `2px solid ${COLORS.paper}` : "none", outlineOffset: 2,
+              }} />
+            ))}
           </div>
-          {habits.map(h => {
-            const hColor = COLORS[h.toneKey];
-            return (
-            <div key={h.id} style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 34px) 70px", gap: 8, alignItems: "center", padding: "10px 0", borderTop: `1px solid ${COLORS.border}` }}>
-              <span style={{ ...fontBody, color: COLORS.paper, fontSize: 14 }}>{h.name}</span>
-              {[1, 2, 3, 4, 5, 6, 7].map(d => {
-                const ds = dateStr(d);
-                const done = !!h.history[ds];
+          <PrimaryButton onClick={addHabit} accent={COLORS.teal}><Plus size={16} /> Agregar</PrimaryButton>
+        </div>
+
+        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 14px" }}>Semana actual (1–7 de julio)</p>
+        {habits.length === 0 ? (
+          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5 }}>No hay hábitos todavía. Agrega el primero arriba.</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 500 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 34px) 70px 24px", gap: 8, alignItems: "center", marginBottom: 14 }}>
+                <span></span>
+                {DAY_LABELS.map((d, i) => <span key={i} style={{ ...fontMono, textAlign: "center", color: COLORS.muted, fontSize: 12 }}>{d}</span>)}
+                <span style={{ ...fontMono, textAlign: "right", color: COLORS.muted, fontSize: 12 }}>racha</span>
+                <span></span>
+              </div>
+              {habits.map(h => {
+                const hColor = COLORS[h.toneKey];
                 return (
-                  <div key={d} onClick={() => toggleDate(h.id, ds)} style={{
-                    width: 22, height: 22, margin: "0 auto", borderRadius: 5, cursor: "pointer",
-                    background: done ? hColor : "transparent", border: `1.5px solid ${done ? hColor : COLORS.border}`,
-                  }} />
+                <div key={h.id} style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 34px) 70px 24px", gap: 8, alignItems: "center", padding: "10px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                  <span style={{ ...fontBody, color: COLORS.paper, fontSize: 14 }}>{h.name}</span>
+                  {[1, 2, 3, 4, 5, 6, 7].map(d => {
+                    const ds = dateStr(d);
+                    const done = !!h.history[ds];
+                    return (
+                      <div key={d} onClick={() => toggleDate(h.id, ds)} style={{
+                        width: 22, height: 22, margin: "0 auto", borderRadius: 5, cursor: "pointer",
+                        background: done ? hColor : "transparent", border: `1.5px solid ${done ? hColor : COLORS.border}`,
+                      }} />
+                    );
+                  })}
+                  <span style={{ ...fontMono, textAlign: "right", color: hColor, fontSize: 13, fontWeight: 600 }}>{streakUpTo(h.history, 7)} días</span>
+                  <button onClick={() => removeHabit(h.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, justifySelf: "center" }}><X size={14} /></button>
+                </div>
                 );
               })}
-              <span style={{ ...fontMono, textAlign: "right", color: hColor, fontSize: 13, fontWeight: 600 }}>{streakUpTo(h.history, 7)} días</span>
             </div>
-            );
-          })}
-        </div>
+          </div>
+        )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.3fr 1fr", gap: 20, alignItems: "start" }}>
@@ -962,28 +908,56 @@ function Habitos({ habits, setHabits }) {
 --------------------------------------------------------- */
 
 function Productos({ products, setProducts }) {
+  const [form, setForm] = useState({ name: "", testDate: `${CAL_YEAR}-${String(CAL_MONTH + 1).padStart(2, "0")}-01`, investment: "", sales: "", notes: "" });
+
   function cycleStatus(id) {
     const order = ["En prueba", "Ganador", "Perdedor"];
     setProducts(prev => prev.map(p => p.id === id
       ? { ...p, status: order[(order.indexOf(p.status) + 1) % order.length] }
       : p));
   }
+  function addProduct() {
+    if (!form.name.trim()) return;
+    setProducts(prev => [...prev, {
+      id: Date.now(), name: form.name.trim(), testDate: form.testDate,
+      investment: Number(form.investment) || 0, sales: Number(form.sales) || 0,
+      status: "En prueba", notes: form.notes,
+    }]);
+    setForm({ name: "", testDate: form.testDate, investment: "", sales: "", notes: "" });
+  }
+  function removeProduct(id) { setProducts(prev => prev.filter(p => p.id !== id)); }
 
   return (
     <div>
       <SectionHeader icon={Package} title="Productos testeados" subtitle={`${products.length} productos en el historial`} accent={COLORS.teal} />
+
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, marginBottom: 20 }}>
+        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Agregar producto</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
+          <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Nombre del producto" style={{ ...inputStyle(), marginBottom: 0 }} />
+          <input type="date" value={form.testDate} onChange={e => setForm({ ...form, testDate: e.target.value })} style={{ ...inputStyle(), marginBottom: 0 }} />
+          <input type="number" value={form.investment} onChange={e => setForm({ ...form, investment: e.target.value })} placeholder="Inversión" style={{ ...inputStyle(), marginBottom: 0 }} />
+          <input type="number" value={form.sales} onChange={e => setForm({ ...form, sales: e.target.value })} placeholder="Ventas" style={{ ...inputStyle(), marginBottom: 0 }} />
+        </div>
+        <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Notas (opcional)" style={{ ...inputStyle(), marginBottom: 12 }} onKeyDown={e => e.key === "Enter" && addProduct()} />
+        <PrimaryButton onClick={addProduct} accent={COLORS.teal}><Plus size={16} /> Agregar producto</PrimaryButton>
+      </div>
+
       <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
+        {products.length === 0 ? (
+          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, padding: 20 }}>No hay productos testeados todavía.</p>
+        ) : (
         <div style={{ overflowX: "auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr 0.8fr 1.3fr", gap: 16, padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, minWidth: 760 }}>
-            {["Producto", "Fecha", "Inversión", "Ventas", "ROI", "Estado"].map(h => (
+          <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr 0.8fr 1.3fr 24px", gap: 16, padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, minWidth: 800 }}>
+            {["Producto", "Fecha", "Inversión", "Ventas", "ROI", "Estado", ""].map(h => (
               <span key={h} style={{ ...fontBody, color: COLORS.muted, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, whiteSpace: "nowrap" }}>{h}</span>
             ))}
           </div>
           {products.map(p => {
-            const roi = ((p.sales - p.investment) / p.investment) * 100;
+            const roi = p.investment ? ((p.sales - p.investment) / p.investment) * 100 : null;
             const sm = STATUS_META[p.status];
             return (
-              <div key={p.id} style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr 0.8fr 1.3fr", gap: 16, padding: "14px 20px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center", minWidth: 760 }}>
+              <div key={p.id} style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr 0.8fr 1.3fr 24px", gap: 16, padding: "14px 20px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center", minWidth: 800 }}>
                 <div style={{ minWidth: 0 }}>
                   <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14, fontWeight: 500, margin: 0 }}>{p.name}</p>
                   <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12, margin: "3px 0 0" }}>{p.notes}</p>
@@ -991,17 +965,19 @@ function Productos({ products, setProducts }) {
                 <span style={{ ...fontMono, color: COLORS.muted, fontSize: 13, whiteSpace: "nowrap" }}>{p.testDate}</span>
                 <span style={{ ...fontMono, color: COLORS.paper, fontSize: 13, whiteSpace: "nowrap" }}>{fmtCOP(p.investment)}</span>
                 <span style={{ ...fontMono, color: COLORS.paper, fontSize: 13, whiteSpace: "nowrap" }}>{fmtCOP(p.sales)}</span>
-                <span style={{ ...fontMono, color: roi >= 0 ? COLORS.teal : COLORS.coral, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}>
-                  {roi >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />} {roi.toFixed(0)}%
+                <span style={{ ...fontMono, color: roi === null ? COLORS.muted : roi >= 0 ? COLORS.teal : COLORS.coral, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}>
+                  {roi === null ? "—" : <>{roi >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />} {roi.toFixed(0)}%</>}
                 </span>
                 <button onClick={() => cycleStatus(p.id)} style={{
                   ...fontBody, justifySelf: "start", border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600,
                   padding: "6px 12px", borderRadius: 20, background: sm.dim, color: sm.color, whiteSpace: "nowrap",
                 }}>{p.status}</button>
+                <button onClick={() => removeProduct(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><X size={14} /></button>
               </div>
             );
           })}
         </div>
+        )}
       </div>
     </div>
   );
@@ -2000,15 +1976,15 @@ export default function App() {
   const [view, setView] = useState("resumen");
   const [mode, setMode] = useState("dark");
   const [navOpen, setNavOpen] = useState(false);
-  const [expenses, setExpenses] = useState(seedExpenses);
-  const [goals, setGoals] = useState(seedGoals);
-  const [tasks, setTasks] = useState(seedTasks);
-  const [habits, setHabits] = useState(seedHabits);
-  const [products, setProducts] = useState(seedProducts);
-  const [activities, setActivities] = useState(seedActivities);
+  const [expenses, setExpenses] = useState([]);
+  const [goals, setGoals] = useState({ diario: [], semanal: [], mensual: [], trimestral: [] });
+  const [tasks, setTasks] = useState({ diario: [], semanal: [], mensual: [] });
+  const [habits, setHabits] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [completions, setCompletions] = useState({});
   const [journals, setJournals] = useState({});
-  const [trades, setTrades] = useState(seedTrades);
+  const [trades, setTrades] = useState([]);
   const [accountSize, setAccountSize] = useState(10000);
   const [language, setLanguage] = useState("es");
   const [langMenuOpen, setLangMenuOpen] = useState(false);
