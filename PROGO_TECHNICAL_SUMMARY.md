@@ -74,6 +74,7 @@ Todas las tablas tienen `enable row level security` + policy `for all using (aut
 - **Rol admin:** el correo `juaneschaverra15@gmail.com` se marca `role='admin'` automáticamente al registrarse (hardcodeado en el trigger SQL). Ver a un usuario ya existente que debería ser admin pero se registró antes del trigger: hay lógica de auto-reparación en el frontend (`App.jsx`, efecto de carga de perfil) que crea la fila de perfil como `role='user'` si falta — un admin preexistente necesitaría un `UPDATE profiles SET role='admin' WHERE email=...` manual si esto vuelve a pasar.
 - **Admin ve:** insignia dorada "FUNDADOR" en el sidebar/topbar, ítem de nav "Usuarios" con lista de todas las cuentas (email, rol, fecha, activar/desactivar). Los admins **NO** pueden ver gastos/metas/etc. de otros usuarios (solo la tabla `profiles`, nunca las tablas de datos).
 - **Cuenta desactivada:** si `profiles.disabled = true`, el usuario es deslogueado automáticamente en su próxima carga y ve un mensaje fijo.
+- **Sesión persistente:** checkbox "Mantener sesión iniciada en este dispositivo" en el login (marcado por defecto). Supabase ya persiste la sesión en `localStorage` indefinidamente por defecto — el checkbox es lo que da control real: si se desmarca, `supabaseClient.js` usa un `storage` adapter dinámico que guarda en `sessionStorage` en vez de `localStorage` (se pierde al cerrar la app/pestaña). La preferencia se guarda en `localStorage["progo-remember-me"]` y se lee al vuelo en cada `getItem`/`setItem` que hace el SDK de Supabase.
 
 ---
 
@@ -130,10 +131,16 @@ CRUD completo y persistido (agregar/editar/eliminar), siguiendo el mismo patrón
 ### Usuarios (solo admin)
 Lista de perfiles, activar/desactivar cuentas.
 
-### Móvil / responsive
+### Móvil / responsive / PWA
 - `useIsMobile()` hook (breakpoint 768px) usado en todos los grids de 2 columnas para colapsar a 1.
-- Sidebar → topbar + drawer lateral en móvil.
-- Toggle de tema (claro/oscuro, componente `AppleToggle` estilo iOS) presente tanto en el topbar de escritorio (con nombre/email del usuario) como junto al menú hamburguesa en móvil, ambos con íconos sol/luna identificando la función. El selector de idioma decorativo que existía antes en el topbar de escritorio **fue retirado** (no traducía nada realmente — ver §8).
+- **PWA instalable:** `vite-plugin-pwa` (manifest + service worker `autoUpdate`), íconos en `public/icons/`. Instalable desde Android (Chrome → Instalar app) o iOS (Safari → compartir → Añadir a pantalla de inicio). Recordatorio importante para cualquier cambio visual: el service worker cachea agresivamente — hay que cerrar y reabrir la app (a veces dos veces) para ver un deploy nuevo, y si de verdad no se actualiza, la única forma confiable de forzarlo es borrar los datos del sitio en Ajustes → Safari → Avanzado → Datos de sitios web (quitar el ícono de la pantalla de inicio y reinstalar **no** limpia esto).
+- **Altura de pantalla:** el wrapper raíz de `App()` y `AuthShell` NO usan `100dvh`/`100vh` — se demostró que `100dvh` es poco confiable dentro de una PWA instalada en iOS (el alto reportado no siempre coincide con el real). En su lugar, `useViewportHeight()` mide `window.visualViewport.height`/`window.innerHeight` por JS y lo aplica como alto en píxeles, recalculando en `resize`/`orientationchange`. `html`/`body`/`#root` (en `index.css`) usan `height: 100%; overflow: hidden;` — ese `overflow:hidden` es lo que evita que la página completa haga scroll nativo (rebote elástico de iOS), dejando el área de contenido de `App()` como el único contenedor real con scroll.
+- **Área segura (notch/cámara/home indicator):** padding con `env(safe-area-inset-*)` en el topbar móvil, el drawer, `AuthShell` y el área de contenido. Requiere `viewport-fit=cover` en el `<meta name="viewport">` de `index.html`.
+- **Fondo fuera de la app:** `body.style.background` y `<meta name="theme-color">` se sincronizan por JS (`useEffect` en `App()`, dependiente de `mode`) con el color de fondo del tema activo — si no, cualquier hueco que iOS deje fuera del área de la app (por ejemplo según el estado de su UI) mostraría un color fijo en vez del fondo correcto según modo claro/oscuro.
+- **Navegación inferior móvil:** cápsula flotante estilo WhatsApp/Instagram (blur, bordes muy redondeados, tab activo con fondo tipo píldora en vez de cambiar de color) con 4 secciones fijas (Resumen, Gastos, Rutina, Tareas) + un quinto ítem "Más" que abre el drawer completo. **Importante:** deliberadamente NO usa `position: fixed` — es el último hijo normal (`flexShrink: 0`) de la columna flex del wrapper raíz. Se intentó con `position: fixed` primero (como WhatsApp/Instagram real) pero, tras 4 rondas de fixes de CSS (quitar `overflow:hidden` del wrapper, sincronizar fondo con el tema, medir el viewport por JS), seguía apareciendo "flotando muy arriba" de forma inconsistente en el iPhone real de pruebas — un bug de cómo iOS calcula la posición de elementos `fixed` dentro de una PWA instalada que no se pudo aislar del todo. Pasar a un hijo flex normal lo evita por completo (es solo aritmética de flexbox, no depende de que iOS reporte bien el viewport para `fixed`).
+- Sidebar → topbar + capsula inferior + drawer lateral (abierto desde el ítem "Más") en móvil.
+- Toggle de tema (claro/oscuro, componente `AppleToggle` estilo iOS) presente tanto en el topbar de escritorio (con nombre/email del usuario) como en el topbar móvil, ambos con íconos sol/luna identificando la función. El selector de idioma decorativo que existía antes en el topbar de escritorio **fue retirado** (no traducía nada realmente — ver §8).
+- Todos los `<input>`/`<textarea>`/`<select>` usan `fontSize: 16` (vía `inputStyle()`) a propósito — por debajo de 16px, Safari en iOS hace zoom automático al enfocar el campo.
 
 ---
 
@@ -154,6 +161,7 @@ No hay ninguna otra variable de entorno ni secreto en el proyecto. El token pers
 
 ## 8. Decisiones de diseño importantes (por qué, no solo qué)
 
+- **Directiva de diseño explícita del usuario: la app debe sentirse "premium, tipo Apple".** Referencias dadas: capturas reales de WhatsApp e Instagram (navegación inferior tipo cápsula flotante translúcida con blur, esquinas muy redondeadas, tab activo marcado con una píldora de fondo en vez de cambiar de color). Tener esto en cuenta para cualquier UI nueva o retoque visual, no solo para la barra inferior — es el estándar estético que el usuario quiere en toda la app de aquí en adelante.
 - **Paleta de colores validada con el skill `dataviz`:** oro/teal/coral/violeta, calculados y verificados con `validate_palette.js` (contraste, daltonismo) para modo oscuro y claro por separado — no son colores "a ojo". Documentados en el comment-header de `App.jsx` líneas ~14-29.
 - **Ingreso mensual (Gastos) es MANUAL, no automático:** decisión explícita del usuario — es un valor tipo "sueldo esperado" distinto de los ingresos reales transaccionales de "Ingresos y saldos". Preguntar antes de "arreglar" esto asumiendo que deberían ser lo mismo.
 - **Meta financiera calcula progreso en vivo, nunca lo guarda:** para evitar inconsistencias/duplicados (requisito explícito del usuario: "no sumar dos veces el mismo registro").
@@ -167,17 +175,21 @@ No hay ninguna otra variable de entorno ni secreto en el proyecto. El token pers
 
 ## 9. Errores pendientes / riesgos conocidos
 
-1. **Ningún flujo fue probado end-to-end por el asistente con login real** — ni la persistencia previa (~8 tablas) ni el nuevo módulo de Egresos, code-splitting de Recharts, o remoción del selector de idioma pasaron por un click real de "usar la app" hecho por el asistente (política de seguridad: nunca se entran contraseñas). Todo pasó build+lint+revisión de código línea por línea, incluyendo verificar a mano que cada columna escrita coincide con `schema.sql`, y que la tabla `egresos` existe en vivo (`HTTP 200` en `/rest/v1/egresos`, confirmado 2026-07-09 tras correr el SQL). Recomendado: el usuario debería probar cada sección una vez, especialmente Ingresos y saldos con ambas pestañas.
-2. **`git config` de commits usa nombre/email autodetectados** (`juanchaverra@MacBook-Air-de-Juan.local`) en vez de un nombre real configurado — cosmético, no rompe nada.
-3. **Bundle inicial sigue por encima de 500KB** (bajó de ~870KB a ~521KB tras sacar Recharts a un chunk separado cargado bajo demanda; el chunk de Recharts en sí también supera 500KB, así que Vite sigue avisando en el build). No es un bug — solo queda como posible optimización futura si el proyecto sigue creciendo (ej. tree-shaking más agresivo de `lucide-react`, o extraer más secciones a módulos separados).
+1. **Barra inferior móvil: pendiente confirmar en el iPhone real que el fix definitivo (quitar `position:fixed`, ver §6) funcionó.** Se intentó 4 veces con `position:fixed` (quitar `overflow:hidden` del wrapper, sincronizar `body`/`theme-color` con el tema, medir el viewport por JS) y el usuario seguía viendo la cápsula "flotando muy arriba" de forma inconsistente entre pruebas — nunca se logró aislar la causa exacta de por qué `position:fixed` fallaba específicamente en su PWA instalada en iOS. El fix actual evita el problema de raíz (ya no usa `position:fixed` para la barra), pero **todavía no fue confirmado por el usuario en el dispositivo real** al momento de escribir esto. Si vuelve a fallar, la causa ya NO puede ser la misma (esta vez es solo flexbox), así que investigar desde cero.
+2. **Ningún flujo fue probado end-to-end por el asistente con login real** — ni la persistencia previa (~8 tablas) ni el nuevo módulo de Egresos, code-splitting de Recharts, PWA, o navegación inferior pasaron por un click real de "usar la app" hecho por el asistente (política de seguridad: nunca se entran contraseñas). En esta sesión sí se pudo verificar bastante en vivo porque el navegador de preview tenía una sesión de Supabase ya activa (no iniciada por el asistente) — eso permitió confirmar en DOM real cosas como el contenedor único de scroll, el fondo sincronizado con el tema, y el `font-size` de los inputs. Lo que **no** se pudo probar así: el login/registro en sí (el checkbox "mantener sesión iniciada" nuevo, en particular, nunca fue ejercitado con una cuenta real), y nada del comportamiento específico de iOS Safari/PWA standalone (notch, `position:fixed`, `dvh`) — eso solo lo puede confirmar el usuario en su teléfono.
+3. **`git config` de commits usa nombre/email autodetectados** (`juanchaverra@MacBook-Air-de-Juan.local`) en vez de un nombre real configurado — cosmético, no rompe nada.
+4. **Bundle inicial sigue por encima de 500KB** (bajó de ~870KB a ~521KB tras sacar Recharts a un chunk separado cargado bajo demanda; el chunk de Recharts en sí también supera 500KB, así que Vite sigue avisando en el build). No es un bug — solo queda como posible optimización futura si el proyecto sigue creciendo (ej. tree-shaking más agresivo de `lucide-react`, o extraer más secciones a módulos separados).
 
 ---
 
 ## 10. Próximos pasos sugeridos (no empezados)
 
+- Confirmar con el usuario, en su iPhone real, que la barra inferior ya quedó bien posicionada (ver riesgo #1 arriba) — es el pendiente más urgente.
+- Probar el checkbox "mantener sesión iniciada" con una cuenta real (marcado y desmarcado) para confirmar que efectivamente cambia el comportamiento al cerrar/reabrir la app.
 - Probar Ingresos y saldos con datos reales (ambas pestañas: registrar, editar, eliminar un ingreso y un egreso, confirmar que el saldo se actualiza y que sigue ahí tras recargar).
-- Considerar mover las funciones CRUD de `App()` (que ya son ~28 funciones) a un hook custom o módulo aparte (`useProgoData.js`) si `App.jsx` sigue creciendo — hoy funciona pero el archivo es monolítico (~2950 líneas).
+- Considerar mover las funciones CRUD de `App()` (que ya son ~28 funciones) a un hook custom o módulo aparte (`useProgoData.js`) si `App.jsx` sigue creciendo — hoy funciona pero el archivo es monolítico (~3100 líneas).
 - Si se decide invertir en internacionalización real (el selector de idioma se retiró por decorativo, ver §8), sería un proyecto aparte: extraer todas las cadenas hardcodeadas en español a un diccionario.
+- Seguir aplicando la directiva de "diseño premium tipo Apple" (§8) al resto de la app, no solo a la nav inferior — el usuario puede pedir retoques similares en otras pantallas.
 
 ---
 
