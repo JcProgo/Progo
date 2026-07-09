@@ -2331,7 +2331,7 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
 function AuthShell({ children }) {
   return (
     <div style={{
-      ...fontBody, minHeight: "100vh", background: COLORS.ink, color: COLORS.paper, display: "flex", alignItems: "center", justifyContent: "center",
+      ...fontBody, height: "100dvh", overflowY: "auto", background: COLORS.ink, color: COLORS.paper, display: "flex", alignItems: "center", justifyContent: "center",
       paddingTop: "max(20px, env(safe-area-inset-top, 0px))", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))",
       paddingLeft: "max(20px, env(safe-area-inset-left, 0px))", paddingRight: "max(20px, env(safe-area-inset-right, 0px))",
     }}>
@@ -2950,7 +2950,7 @@ export default function App() {
   );
 
   return (
-    <div style={{ ...fontBody, display: "flex", flexDirection: isMobile ? "column" : "row", minHeight: "100vh", background: COLORS.ink, color: COLORS.paper }}>
+    <div style={{ ...fontBody, display: "flex", flexDirection: isMobile ? "column" : "row", height: "100dvh", background: COLORS.ink, color: COLORS.paper, overflow: "hidden" }}>
       {isMobile ? (
         <>
           <div style={{
@@ -3017,7 +3017,7 @@ export default function App() {
           </div>
         </>
       ) : (
-        <div style={{ width: 240, background: COLORS.card, borderRight: `1px solid ${COLORS.border}`, padding: "24px 16px", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+        <div style={{ width: 240, background: COLORS.card, borderRight: `1px solid ${COLORS.border}`, padding: "24px 16px", display: "flex", flexDirection: "column", flexShrink: 0, overflowY: "auto" }}>
           <div style={{ padding: "0 8px", marginBottom: 32 }}>{brand(34)}</div>
           {navItems}
           <div style={{ marginTop: "auto", paddingTop: 16 }}>{signOutButton}</div>
@@ -3025,7 +3025,7 @@ export default function App() {
       )}
 
       <div style={{
-        flex: 1, minWidth: 0, overflowY: "auto",
+        flex: 1, minWidth: 0, overflowY: "auto", overscrollBehaviorY: "contain",
         ...(isMobile
           ? { padding: 16, paddingBottom: "calc(88px + env(safe-area-inset-bottom, 0px))" }
           : { padding: "28px 32px" }),
