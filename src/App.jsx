@@ -2303,7 +2303,11 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
 
 function AuthShell({ children }) {
   return (
-    <div style={{ ...fontBody, minHeight: "100vh", background: COLORS.ink, color: COLORS.paper, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div style={{
+      ...fontBody, minHeight: "100vh", background: COLORS.ink, color: COLORS.paper, display: "flex", alignItems: "center", justifyContent: "center",
+      paddingTop: "max(20px, env(safe-area-inset-top, 0px))", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))",
+      paddingLeft: "max(20px, env(safe-area-inset-left, 0px))", paddingRight: "max(20px, env(safe-area-inset-right, 0px))",
+    }}>
       <div style={{ width: "100%", maxWidth: 380, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 28 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, justifyContent: "center" }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, overflow: "hidden", display: "flex", flexShrink: 0 }}><ProgoMark size={38} mode="dark" /></div>
@@ -2922,7 +2926,8 @@ export default function App() {
       {isMobile ? (
         <>
           <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            paddingTop: "calc(14px + env(safe-area-inset-top, 0px))", paddingBottom: 14, paddingLeft: 16, paddingRight: 16,
             background: COLORS.card, borderBottom: `1px solid ${COLORS.border}`, position: "sticky", top: 0, zIndex: 40,
           }}>
             {brand(30)}
@@ -2941,7 +2946,8 @@ export default function App() {
             <div onClick={() => setNavOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(8,10,14,0.6)", display: "flex" }}>
               <div onClick={e => e.stopPropagation()} style={{
                 width: "78%", maxWidth: 280, background: COLORS.card, height: "100%",
-                padding: "20px 16px", display: "flex", flexDirection: "column", overflowY: "auto", boxSizing: "border-box",
+                paddingTop: "calc(20px + env(safe-area-inset-top, 0px))", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))",
+                paddingLeft: 16, paddingRight: 16, display: "flex", flexDirection: "column", overflowY: "auto", boxSizing: "border-box",
               }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
                   {brand(30)}
@@ -2961,7 +2967,12 @@ export default function App() {
         </div>
       )}
 
-      <div style={{ flex: 1, minWidth: 0, padding: isMobile ? "16px" : "28px 32px", overflowY: "auto" }}>
+      <div style={{
+        flex: 1, minWidth: 0, overflowY: "auto",
+        ...(isMobile
+          ? { padding: 16, paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))" }
+          : { padding: "28px 32px" }),
+      }}>
         {!isMobile && (
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 18, marginBottom: 24, flexWrap: "wrap" }}>
             <div style={{ textAlign: "right" }}>
