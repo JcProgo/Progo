@@ -5,7 +5,7 @@ import {
   Plus, Trash2, ChevronRight, TrendingUp, TrendingDown, Coffee,
   UtensilsCrossed, ShoppingCart, Car, Home as HomeIcon, Zap,
   HeartPulse, ShoppingBag, Trash, GraduationCap, MoreHorizontal, Check,
-  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, Menu, LogOut, Users, ShieldCheck, Globe
+  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, Menu, LogOut, Users, ShieldCheck, Globe, Pencil
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -361,6 +361,7 @@ function CategoryCalendar({ category, expenses, setExpenses, onBack }) {
   const Icon = meta.icon;
   const [selectedDate, setSelectedDate] = useState(null);
   const [form, setForm] = useState({ description: "", amount: "" });
+  const [editingId, setEditingId] = useState(null);
   const isMobile = useIsMobile();
 
   const catExpenses = useMemo(() => expenses.filter(e => e.category === category), [expenses, category]);
@@ -382,10 +383,21 @@ function CategoryCalendar({ category, expenses, setExpenses, onBack }) {
 
   function addExpense() {
     if (!selectedDate || !form.description || !form.amount) return;
-    setExpenses(prev => [{ id: Date.now(), date: selectedDate, category, description: form.description, amount: Number(form.amount) }, ...prev]);
+    if (editingId) {
+      setExpenses(prev => prev.map(e => e.id === editingId ? { ...e, date: selectedDate, description: form.description, amount: Number(form.amount) } : e));
+      setEditingId(null);
+    } else {
+      setExpenses(prev => [{ id: Date.now(), date: selectedDate, category, description: form.description, amount: Number(form.amount) }, ...prev]);
+    }
     setForm({ description: "", amount: "" });
   }
-  function removeExpense(id) { setExpenses(prev => prev.filter(e => e.id !== id)); }
+  function startEditExpense(e) {
+    setEditingId(e.id);
+    setSelectedDate(e.date);
+    setForm({ description: e.description, amount: String(e.amount) });
+  }
+  function cancelEdit() { setEditingId(null); setForm({ description: "", amount: "" }); }
+  function removeExpense(id) { setExpenses(prev => prev.filter(e => e.id !== id)); if (editingId === id) cancelEdit(); }
 
   return (
     <div>
@@ -443,15 +455,16 @@ function CategoryCalendar({ category, expenses, setExpenses, onBack }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 20 }}>
-            <p style={{ ...fontBody, color: COLORS.paper, fontWeight: 600, fontSize: 15, margin: "0 0 16px" }}>Agregar gasto</p>
+            <p style={{ ...fontBody, color: COLORS.paper, fontWeight: 600, fontSize: 15, margin: "0 0 16px" }}>{editingId ? "Editar gasto" : "Agregar gasto"}</p>
             <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12 }}>Fecha</label>
             <input type="date" value={selectedDate || ""} onChange={e => setSelectedDate(e.target.value)} style={inputStyle()} />
             <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12 }}>Descripción</label>
             <input placeholder="Ej. Almuerzo con clientes" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} style={inputStyle()} />
             <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12 }}>Monto</label>
             <input type="number" placeholder="0" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} style={inputStyle()} />
-            <div style={{ marginTop: 4 }}>
-              <PrimaryButton onClick={addExpense} accent={meta.color}><Plus size={16} /> Guardar gasto</PrimaryButton>
+            <div style={{ marginTop: 4, display: "flex", gap: 8 }}>
+              <PrimaryButton onClick={addExpense} accent={meta.color}>{editingId ? <><Check size={16} /> Guardar cambios</> : <><Plus size={16} /> Guardar gasto</>}</PrimaryButton>
+              {editingId && <button onClick={cancelEdit} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>}
             </div>
           </div>
 
@@ -473,6 +486,9 @@ function CategoryCalendar({ category, expenses, setExpenses, onBack }) {
                   <p style={{ ...fontBody, color: COLORS.paper, fontSize: 13.5, margin: 0 }}>{e.description}</p>
                 </div>
                 <span style={{ ...fontMono, color: meta.color, fontSize: 13, fontWeight: 600 }}>{fmtCOP(e.amount)}</span>
+                <button onClick={() => startEditExpense(e)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}>
+                  <Pencil size={13} />
+                </button>
                 <button onClick={() => removeExpense(e.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}>
                   <Trash2 size={14} />
                 </button>
@@ -519,6 +535,7 @@ function Ring({ pct, color, size = 64 }) {
 function Metas({ goals, setGoals }) {
   const [tab, setTab] = useState("diario");
   const [form, setForm] = useState({ title: "", target: "", money: false });
+  const [editingId, setEditingId] = useState(null);
   const meta = TIMEFRAME_META[tab];
   const list = goals[tab];
   const isDiario = tab === "diario";
@@ -528,6 +545,7 @@ function Metas({ goals, setGoals }) {
   }
   function removeGoal(id) {
     setGoals(prev => ({ ...prev, [tab]: prev[tab].filter(g => g.id !== id) }));
+    if (editingId === id) cancelEdit();
   }
   function updateProgress(id, value) {
     setGoals(prev => ({
@@ -535,16 +553,29 @@ function Metas({ goals, setGoals }) {
       [tab]: prev[tab].map(g => g.id === id ? { ...g, progress: Math.max(0, Math.min(g.target, value)) } : g)
     }));
   }
+  function startEditGoal(g) {
+    setEditingId(g.id);
+    setForm({ title: g.title, target: g.target ? String(g.target) : "", money: !!g.money });
+  }
+  function cancelEdit() { setEditingId(null); setForm({ title: "", target: "", money: false }); }
   function addGoal() {
     if (!form.title.trim()) return;
     if (isDiario) {
-      setGoals(prev => ({ ...prev, diario: [...prev.diario, { id: Date.now(), title: form.title, done: false }] }));
+      if (editingId) {
+        setGoals(prev => ({ ...prev, diario: prev.diario.map(g => g.id === editingId ? { ...g, title: form.title } : g) }));
+      } else {
+        setGoals(prev => ({ ...prev, diario: [...prev.diario, { id: Date.now(), title: form.title, done: false }] }));
+      }
     } else {
       const target = Number(form.target);
       if (!target || target <= 0) return;
-      setGoals(prev => ({ ...prev, [tab]: [...prev[tab], { id: Date.now(), title: form.title, progress: 0, target, money: form.money }] }));
+      if (editingId) {
+        setGoals(prev => ({ ...prev, [tab]: prev[tab].map(g => g.id === editingId ? { ...g, title: form.title, target, money: form.money, progress: Math.min(g.progress, target) } : g) }));
+      } else {
+        setGoals(prev => ({ ...prev, [tab]: [...prev[tab], { id: Date.now(), title: form.title, progress: 0, target, money: form.money }] }));
+      }
     }
-    setForm({ title: "", target: "", money: false });
+    cancelEdit();
   }
 
   return (
@@ -577,7 +608,8 @@ function Metas({ goals, setGoals }) {
             Es dinero
           </label>
         )}
-        <PrimaryButton onClick={addGoal} accent={meta.color}><Plus size={16} /> Agregar</PrimaryButton>
+        <PrimaryButton onClick={addGoal} accent={meta.color}>{editingId ? <><Check size={16} /> Guardar</> : <><Plus size={16} /> Agregar</>}</PrimaryButton>
+        {editingId && <button onClick={cancelEdit} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>}
       </div>
 
       {isDiario ? (
@@ -594,6 +626,7 @@ function Metas({ goals, setGoals }) {
                 {g.done && <Check size={14} color={COLORS.onAccent} strokeWidth={3} />}
               </div>
               <span onClick={() => toggleDaily(g.id)} style={{ ...fontBody, flex: 1, cursor: "pointer", fontSize: 14.5, color: g.done ? COLORS.muted : COLORS.paper, textDecoration: g.done ? "line-through" : "none" }}>{g.title}</span>
+              <button onClick={() => startEditGoal(g)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><Pencil size={14} /></button>
               <button onClick={() => removeGoal(g.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><X size={15} /></button>
             </div>
           ))}
@@ -614,7 +647,10 @@ function Metas({ goals, setGoals }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
                     <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14.5, fontWeight: 500, margin: "0 0 6px" }}>{g.title}</p>
-                    <button onClick={() => removeGoal(g.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, flexShrink: 0 }}><X size={15} /></button>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => startEditGoal(g)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><Pencil size={14} /></button>
+                      <button onClick={() => removeGoal(g.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><X size={15} /></button>
+                    </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input type="number" value={g.progress} onChange={e => updateProgress(g.id, Number(e.target.value))} style={{
@@ -647,16 +683,23 @@ const TASK_TIMEFRAME_META = {
 function Tareas({ tasks, setTasks }) {
   const [tab, setTab] = useState("diario");
   const [newTask, setNewTask] = useState("");
+  const [editingId, setEditingId] = useState(null);
   const meta = TASK_TIMEFRAME_META[tab];
   const list = tasks[tab];
   const done = list.filter(t => t.done).length;
 
   function toggle(id) { setTasks(prev => ({ ...prev, [tab]: prev[tab].map(t => t.id === id ? { ...t, done: !t.done } : t) })); }
-  function remove(id) { setTasks(prev => ({ ...prev, [tab]: prev[tab].filter(t => t.id !== id) })); }
+  function remove(id) { setTasks(prev => ({ ...prev, [tab]: prev[tab].filter(t => t.id !== id) })); if (editingId === id) cancelEdit(); }
+  function startEdit(t) { setEditingId(t.id); setNewTask(t.title); }
+  function cancelEdit() { setEditingId(null); setNewTask(""); }
   function add() {
     if (!newTask.trim()) return;
-    setTasks(prev => ({ ...prev, [tab]: [...prev[tab], { id: Date.now(), title: newTask, done: false }] }));
-    setNewTask("");
+    if (editingId) {
+      setTasks(prev => ({ ...prev, [tab]: prev[tab].map(t => t.id === editingId ? { ...t, title: newTask } : t) }));
+    } else {
+      setTasks(prev => ({ ...prev, [tab]: [...prev[tab], { id: Date.now(), title: newTask, done: false }] }));
+    }
+    cancelEdit();
   }
 
   return (
@@ -677,7 +720,8 @@ function Tareas({ tasks, setTasks }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
         <input value={newTask} onChange={e => setNewTask(e.target.value)} onKeyDown={e => e.key === "Enter" && add()}
           placeholder={`Nueva tarea ${meta.label.toLowerCase()}`} style={{ ...inputStyle(), marginBottom: 0, flex: 1 }} />
-        <PrimaryButton onClick={add} accent={meta.color}><Plus size={16} /> Agregar</PrimaryButton>
+        <PrimaryButton onClick={add} accent={meta.color}>{editingId ? <><Check size={16} /> Guardar</> : <><Plus size={16} /> Agregar</>}</PrimaryButton>
+        {editingId && <button onClick={cancelEdit} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {list.map(t => (
@@ -689,6 +733,7 @@ function Tareas({ tasks, setTasks }) {
               {t.done && <Check size={13} color={COLORS.onAccent} strokeWidth={3} />}
             </div>
             <span style={{ ...fontBody, flex: 1, fontSize: 14.5, color: t.done ? COLORS.muted : COLORS.paper, textDecoration: t.done ? "line-through" : "none" }}>{t.title}</span>
+            <button onClick={() => startEdit(t)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><Pencil size={14} /></button>
             <button onClick={() => remove(t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><X size={15} /></button>
           </div>
         ))}
@@ -719,6 +764,7 @@ const HABIT_TONE_KEYS = ["gold", "teal", "coral", "violet"];
 function Habitos({ habits, setHabits }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const [newHabit, setNewHabit] = useState({ name: "", toneKey: "gold" });
+  const [editingId, setEditingId] = useState(null);
   const { cells, totalDays } = monthMatrix(CAL_YEAR, CAL_MONTH);
   const isMobile = useIsMobile();
 
@@ -727,12 +773,18 @@ function Habitos({ habits, setHabits }) {
       ? { ...h, history: { ...h.history, [ds]: h.history[ds] ? 0 : 1 } }
       : h));
   }
+  function startEditHabit(h) { setEditingId(h.id); setNewHabit({ name: h.name, toneKey: h.toneKey }); }
+  function cancelEdit() { setEditingId(null); setNewHabit({ name: "", toneKey: "gold" }); }
   function addHabit() {
     if (!newHabit.name.trim()) return;
-    setHabits(prev => [...prev, { id: Date.now(), name: newHabit.name.trim(), toneKey: newHabit.toneKey, history: {} }]);
-    setNewHabit({ name: "", toneKey: "gold" });
+    if (editingId) {
+      setHabits(prev => prev.map(h => h.id === editingId ? { ...h, name: newHabit.name.trim(), toneKey: newHabit.toneKey } : h));
+    } else {
+      setHabits(prev => [...prev, { id: Date.now(), name: newHabit.name.trim(), toneKey: newHabit.toneKey, history: {} }]);
+    }
+    cancelEdit();
   }
-  function removeHabit(id) { setHabits(prev => prev.filter(h => h.id !== id)); }
+  function removeHabit(id) { setHabits(prev => prev.filter(h => h.id !== id)); if (editingId === id) cancelEdit(); }
 
   function streakUpTo(history, dayCount) {
     let s = 0;
@@ -773,7 +825,7 @@ function Habitos({ habits, setHabits }) {
       </div>
 
       <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
-        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Agregar hábito</p>
+        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>{editingId ? "Editar hábito" : "Agregar hábito"}</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
           <input value={newHabit.name} onChange={e => setNewHabit({ ...newHabit, name: e.target.value })}
             onKeyDown={e => e.key === "Enter" && addHabit()}
@@ -786,7 +838,8 @@ function Habitos({ habits, setHabits }) {
               }} />
             ))}
           </div>
-          <PrimaryButton onClick={addHabit} accent={COLORS.teal}><Plus size={16} /> Agregar</PrimaryButton>
+          <PrimaryButton onClick={addHabit} accent={COLORS.teal}>{editingId ? <><Check size={16} /> Guardar</> : <><Plus size={16} /> Agregar</>}</PrimaryButton>
+          {editingId && <button onClick={cancelEdit} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>}
         </div>
 
         <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 14px" }}>Semana actual (1–7 de julio)</p>
@@ -795,16 +848,17 @@ function Habitos({ habits, setHabits }) {
         ) : (
           <div style={{ overflowX: "auto" }}>
             <div style={{ minWidth: 500 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 34px) 70px 24px", gap: 8, alignItems: "center", marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 34px) 70px 24px 24px", gap: 8, alignItems: "center", marginBottom: 14 }}>
                 <span></span>
                 {DAY_LABELS.map((d, i) => <span key={i} style={{ ...fontMono, textAlign: "center", color: COLORS.muted, fontSize: 12 }}>{d}</span>)}
                 <span style={{ ...fontMono, textAlign: "right", color: COLORS.muted, fontSize: 12 }}>racha</span>
+                <span></span>
                 <span></span>
               </div>
               {habits.map(h => {
                 const hColor = COLORS[h.toneKey];
                 return (
-                <div key={h.id} style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 34px) 70px 24px", gap: 8, alignItems: "center", padding: "10px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                <div key={h.id} style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 34px) 70px 24px 24px", gap: 8, alignItems: "center", padding: "10px 0", borderTop: `1px solid ${COLORS.border}` }}>
                   <span style={{ ...fontBody, color: COLORS.paper, fontSize: 14 }}>{h.name}</span>
                   {[1, 2, 3, 4, 5, 6, 7].map(d => {
                     const ds = dateStr(d);
@@ -817,6 +871,7 @@ function Habitos({ habits, setHabits }) {
                     );
                   })}
                   <span style={{ ...fontMono, textAlign: "right", color: hColor, fontSize: 13, fontWeight: 600 }}>{streakUpTo(h.history, 7)} días</span>
+                  <button onClick={() => startEditHabit(h)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, justifySelf: "center" }}><Pencil size={13} /></button>
                   <button onClick={() => removeHabit(h.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, justifySelf: "center" }}><X size={14} /></button>
                 </div>
                 );
@@ -909,6 +964,7 @@ function Habitos({ habits, setHabits }) {
 
 function Productos({ products, setProducts }) {
   const [form, setForm] = useState({ name: "", testDate: `${CAL_YEAR}-${String(CAL_MONTH + 1).padStart(2, "0")}-01`, investment: "", sales: "", notes: "" });
+  const [editingId, setEditingId] = useState(null);
 
   function cycleStatus(id) {
     const order = ["En prueba", "Ganador", "Perdedor"];
@@ -916,23 +972,35 @@ function Productos({ products, setProducts }) {
       ? { ...p, status: order[(order.indexOf(p.status) + 1) % order.length] }
       : p));
   }
+  function startEditProduct(p) {
+    setEditingId(p.id);
+    setForm({ name: p.name, testDate: p.testDate, investment: String(p.investment), sales: String(p.sales), notes: p.notes });
+  }
+  function cancelEdit() { setEditingId(null); setForm({ name: "", testDate: `${CAL_YEAR}-${String(CAL_MONTH + 1).padStart(2, "0")}-01`, investment: "", sales: "", notes: "" }); }
   function addProduct() {
     if (!form.name.trim()) return;
-    setProducts(prev => [...prev, {
-      id: Date.now(), name: form.name.trim(), testDate: form.testDate,
-      investment: Number(form.investment) || 0, sales: Number(form.sales) || 0,
-      status: "En prueba", notes: form.notes,
-    }]);
-    setForm({ name: "", testDate: form.testDate, investment: "", sales: "", notes: "" });
+    if (editingId) {
+      setProducts(prev => prev.map(p => p.id === editingId ? {
+        ...p, name: form.name.trim(), testDate: form.testDate,
+        investment: Number(form.investment) || 0, sales: Number(form.sales) || 0, notes: form.notes,
+      } : p));
+    } else {
+      setProducts(prev => [...prev, {
+        id: Date.now(), name: form.name.trim(), testDate: form.testDate,
+        investment: Number(form.investment) || 0, sales: Number(form.sales) || 0,
+        status: "En prueba", notes: form.notes,
+      }]);
+    }
+    cancelEdit();
   }
-  function removeProduct(id) { setProducts(prev => prev.filter(p => p.id !== id)); }
+  function removeProduct(id) { setProducts(prev => prev.filter(p => p.id !== id)); if (editingId === id) cancelEdit(); }
 
   return (
     <div>
       <SectionHeader icon={Package} title="Productos testeados" subtitle={`${products.length} productos en el historial`} accent={COLORS.teal} />
 
       <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, marginBottom: 20 }}>
-        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Agregar producto</p>
+        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>{editingId ? "Editar producto" : "Agregar producto"}</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
           <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Nombre del producto" style={{ ...inputStyle(), marginBottom: 0 }} />
           <input type="date" value={form.testDate} onChange={e => setForm({ ...form, testDate: e.target.value })} style={{ ...inputStyle(), marginBottom: 0 }} />
@@ -940,7 +1008,10 @@ function Productos({ products, setProducts }) {
           <input type="number" value={form.sales} onChange={e => setForm({ ...form, sales: e.target.value })} placeholder="Ventas" style={{ ...inputStyle(), marginBottom: 0 }} />
         </div>
         <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Notas (opcional)" style={{ ...inputStyle(), marginBottom: 12 }} onKeyDown={e => e.key === "Enter" && addProduct()} />
-        <PrimaryButton onClick={addProduct} accent={COLORS.teal}><Plus size={16} /> Agregar producto</PrimaryButton>
+        <div style={{ display: "flex", gap: 8 }}>
+          <PrimaryButton onClick={addProduct} accent={COLORS.teal}>{editingId ? <><Check size={16} /> Guardar cambios</> : <><Plus size={16} /> Agregar producto</>}</PrimaryButton>
+          {editingId && <button onClick={cancelEdit} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>}
+        </div>
       </div>
 
       <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
@@ -948,16 +1019,16 @@ function Productos({ products, setProducts }) {
           <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, padding: 20 }}>No hay productos testeados todavía.</p>
         ) : (
         <div style={{ overflowX: "auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr 0.8fr 1.3fr 24px", gap: 16, padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, minWidth: 800 }}>
-            {["Producto", "Fecha", "Inversión", "Ventas", "ROI", "Estado", ""].map(h => (
-              <span key={h} style={{ ...fontBody, color: COLORS.muted, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, whiteSpace: "nowrap" }}>{h}</span>
+          <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr 0.8fr 1.3fr 24px 24px", gap: 16, padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, minWidth: 800 }}>
+            {["Producto", "Fecha", "Inversión", "Ventas", "ROI", "Estado", "", ""].map((h, i) => (
+              <span key={i} style={{ ...fontBody, color: COLORS.muted, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, whiteSpace: "nowrap" }}>{h}</span>
             ))}
           </div>
           {products.map(p => {
             const roi = p.investment ? ((p.sales - p.investment) / p.investment) * 100 : null;
             const sm = STATUS_META[p.status];
             return (
-              <div key={p.id} style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr 0.8fr 1.3fr 24px", gap: 16, padding: "14px 20px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center", minWidth: 800 }}>
+              <div key={p.id} style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr 0.8fr 1.3fr 24px 24px", gap: 16, padding: "14px 20px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center", minWidth: 800 }}>
                 <div style={{ minWidth: 0 }}>
                   <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14, fontWeight: 500, margin: 0 }}>{p.name}</p>
                   <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12, margin: "3px 0 0" }}>{p.notes}</p>
@@ -972,6 +1043,7 @@ function Productos({ products, setProducts }) {
                   ...fontBody, justifySelf: "start", border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600,
                   padding: "6px 12px", borderRadius: 20, background: sm.dim, color: sm.color, whiteSpace: "nowrap",
                 }}>{p.status}</button>
+                <button onClick={() => startEditProduct(p)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><Pencil size={13} /></button>
                 <button onClick={() => removeProduct(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><X size={14} /></button>
               </div>
             );
@@ -1600,6 +1672,7 @@ function Trading({ trades, setTrades, accountSize, setAccountSize }) {
   const [tab, setTab] = useState("pnl");
   const [modalDate, setModalDate] = useState(null);
   const [form, setForm] = useState({ symbol: "", pnl: "" });
+  const [editingId, setEditingId] = useState(null);
 
   const ds = d => `${ym.year}-${String(ym.month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const { cells } = monthMatrix(ym.year, ym.month);
@@ -1625,10 +1698,16 @@ function Trading({ trades, setTrades, accountSize, setAccountSize }) {
 
   function addTrade() {
     if (!form.symbol.trim() || form.pnl === "") return;
-    setTrades(prev => [...prev, { id: Date.now(), date: modalDate, symbol: form.symbol.trim().toUpperCase(), pnl: Number(form.pnl) }]);
-    setForm({ symbol: "", pnl: "" });
+    if (editingId) {
+      setTrades(prev => prev.map(t => t.id === editingId ? { ...t, symbol: form.symbol.trim().toUpperCase(), pnl: Number(form.pnl) } : t));
+    } else {
+      setTrades(prev => [...prev, { id: Date.now(), date: modalDate, symbol: form.symbol.trim().toUpperCase(), pnl: Number(form.pnl) }]);
+    }
+    cancelEditTrade();
   }
-  function removeTrade(id) { setTrades(prev => prev.filter(t => t.id !== id)); }
+  function startEditTrade(t) { setEditingId(t.id); setForm({ symbol: t.symbol, pnl: String(t.pnl) }); }
+  function cancelEditTrade() { setEditingId(null); setForm({ symbol: "", pnl: "" }); }
+  function removeTrade(id) { setTrades(prev => prev.filter(t => t.id !== id)); if (editingId === id) cancelEditTrade(); }
 
   const modalTrades = modalDate ? trades.filter(t => t.date === modalDate).sort((a, b) => a.id - b.id) : [];
   const modalPnl = modalTrades.reduce((s, t) => s + t.pnl, 0);
@@ -1727,7 +1806,7 @@ function Trading({ trades, setTrades, accountSize, setAccountSize }) {
       </div>
 
       {modalDate && (
-        <div onClick={() => setModalDate(null)} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(8,10,14,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div onClick={() => { setModalDate(null); cancelEditTrade(); }} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(8,10,14,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, maxHeight: "85vh", overflowY: "auto" }}>
             <p style={{ ...fontDisplay, color: COLORS.paper, fontSize: 17, fontWeight: 700, margin: "0 0 4px" }}>{modalDate}</p>
             <p style={{ ...fontMono, fontSize: 13, color: modalPnl >= 0 ? COLORS.teal : COLORS.coral, margin: "0 0 16px", fontWeight: 600 }}>
@@ -1738,20 +1817,24 @@ function Trading({ trades, setTrades, accountSize, setAccountSize }) {
               <input value={form.symbol} onChange={e => setForm({ ...form, symbol: e.target.value })} placeholder="Símbolo (ej. NQ)" style={{ ...inputStyle(), marginBottom: 0, flex: 1 }} onKeyDown={e => e.key === "Enter" && addTrade()} />
               <input type="number" value={form.pnl} onChange={e => setForm({ ...form, pnl: e.target.value })} placeholder="PNL" style={{ ...inputStyle(), marginBottom: 0, width: 110 }} onKeyDown={e => e.key === "Enter" && addTrade()} />
             </div>
-            <PrimaryButton onClick={addTrade} accent={COLORS.teal}><Plus size={16} /> Agregar operación</PrimaryButton>
+            <div style={{ display: "flex", gap: 8 }}>
+              <PrimaryButton onClick={addTrade} accent={COLORS.teal}>{editingId ? <><Check size={16} /> Guardar</> : <><Plus size={16} /> Agregar operación</>}</PrimaryButton>
+              {editingId && <button onClick={cancelEditTrade} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>}
+            </div>
 
             <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 8 }}>
               {modalTrades.map(t => (
                 <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 9 }}>
                   <span style={{ ...fontBody, flex: 1, fontSize: 13.5, color: COLORS.paper, fontWeight: 600 }}>{t.symbol}</span>
                   <span style={{ ...fontMono, fontSize: 13, fontWeight: 600, color: t.pnl >= 0 ? COLORS.teal : COLORS.coral }}>{fmtUSD(t.pnl)}</span>
+                  <button onClick={() => startEditTrade(t)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><Pencil size={13} /></button>
                   <button onClick={() => removeTrade(t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><X size={14} /></button>
                 </div>
               ))}
               {modalTrades.length === 0 && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13 }}>Sin operaciones este día.</p>}
             </div>
 
-            <button onClick={() => setModalDate(null)} style={{ ...fontBody, marginTop: 16, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cerrar</button>
+            <button onClick={() => { setModalDate(null); cancelEditTrade(); }} style={{ ...fontBody, marginTop: 16, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cerrar</button>
           </div>
         </div>
       )}
