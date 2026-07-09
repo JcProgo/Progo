@@ -5,7 +5,7 @@ import {
   Plus, Trash2, ChevronRight, TrendingUp, TrendingDown, Coffee,
   UtensilsCrossed, ShoppingCart, Car, Home as HomeIcon, Zap,
   HeartPulse, ShoppingBag, Trash, GraduationCap, MoreHorizontal, Check,
-  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, Menu, LogOut, Users, ShieldCheck, Pencil, PiggyBank, Tag
+  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, LogOut, Users, ShieldCheck, Pencil, PiggyBank, Tag
 } from "lucide-react";
 
 // recharts (~200KB+ del bundle) se carga de forma perezosa vía import() dinámico
@@ -2468,6 +2468,11 @@ const NAV = [
   { key: "productos", label: "Productos testeados", icon: Package, get accent() { return COLORS.teal; } },
 ];
 
+// Barra inferior móvil (estilo iOS/Instagram): solo las 4 secciones de uso más
+// frecuente caben fijas; el resto vive detrás del quinto ícono "Más".
+const BOTTOM_TAB_KEYS = ["resumen", "gastos", "rutina", "tareas"];
+const BOTTOM_TAB_LABELS = { resumen: "Resumen", gastos: "Gastos", rutina: "Rutina", tareas: "Tareas" };
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -2857,6 +2862,8 @@ export default function App() {
   }
 
   const isAdmin = profile?.role === "admin";
+  const bottomTabs = NAV.filter(item => BOTTOM_TAB_KEYS.includes(item.key));
+  const moreActive = !BOTTOM_TAB_KEYS.includes(view);
   const navList = isAdmin
     ? [...NAV, { key: "usuarios", label: "Usuarios", icon: Users, get accent() { return COLORS.violet; } }]
     : NAV;
@@ -2935,10 +2942,6 @@ export default function App() {
               <Sun size={13} color={mode === "dark" ? COLORS.muted : COLORS.gold} />
               <AppleToggle checked={mode === "dark"} onChange={() => setMode(m => m === "dark" ? "light" : "dark")} />
               <Moon size={13} color={mode === "dark" ? COLORS.violet : COLORS.muted} />
-              <button onClick={() => setNavOpen(true)} style={{
-                background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8,
-                color: COLORS.paper, cursor: "pointer", padding: 8, display: "flex",
-              }}><Menu size={19} /></button>
             </div>
           </div>
 
@@ -2958,6 +2961,36 @@ export default function App() {
               </div>
             </div>
           )}
+
+          <div style={{
+            position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, display: "flex",
+            background: COLORS.card + "e6", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+            borderTop: `1px solid ${COLORS.border}`,
+            paddingTop: 8, paddingBottom: "calc(8px + env(safe-area-inset-bottom, 0px))",
+          }}>
+            {bottomTabs.map(item => {
+              const Icon = item.icon;
+              const active = view === item.key;
+              return (
+                <button key={item.key} onClick={() => selectView(item.key)} style={{
+                  flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                  background: "transparent", border: "none", cursor: "pointer", padding: "2px 0",
+                  color: active ? item.accent : COLORS.muted,
+                }}>
+                  <Icon size={22} strokeWidth={active ? 2.3 : 1.8} />
+                  <span style={{ ...fontBody, fontSize: 10, fontWeight: active ? 600 : 500 }}>{BOTTOM_TAB_LABELS[item.key]}</span>
+                </button>
+              );
+            })}
+            <button onClick={() => setNavOpen(true)} style={{
+              flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+              background: "transparent", border: "none", cursor: "pointer", padding: "2px 0",
+              color: moreActive ? COLORS.gold : COLORS.muted,
+            }}>
+              <MoreHorizontal size={22} strokeWidth={moreActive ? 2.3 : 1.8} />
+              <span style={{ ...fontBody, fontSize: 10, fontWeight: moreActive ? 600 : 500 }}>Más</span>
+            </button>
+          </div>
         </>
       ) : (
         <div style={{ width: 240, background: COLORS.card, borderRight: `1px solid ${COLORS.border}`, padding: "24px 16px", display: "flex", flexDirection: "column", flexShrink: 0 }}>
@@ -2970,7 +3003,7 @@ export default function App() {
       <div style={{
         flex: 1, minWidth: 0, overflowY: "auto",
         ...(isMobile
-          ? { padding: 16, paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))" }
+          ? { padding: 16, paddingBottom: "calc(76px + env(safe-area-inset-bottom, 0px))" }
           : { padding: "28px 32px" }),
       }}>
         {!isMobile && (
