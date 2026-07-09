@@ -3098,10 +3098,9 @@ export default function App() {
       {isMobile && (
         <div style={{
           flexShrink: 0, display: "flex", justifyContent: "space-between",
-          margin: `0 14px calc(14px + env(safe-area-inset-bottom, 0px)) 14px`,
-          background: COLORS.card + "d9", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-          border: `1px solid ${COLORS.border}`, borderRadius: 28,
-          boxShadow: "0 10px 30px rgba(0,0,0,0.28)", padding: 6,
+          background: COLORS.card + "f2", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+          borderTop: `1px solid ${COLORS.border}`, borderTopLeftRadius: 22, borderTopRightRadius: 22,
+          boxShadow: "0 -6px 24px rgba(0,0,0,0.18)", padding: "6px 6px calc(6px + env(safe-area-inset-bottom, 0px))",
         }}>
           {bottomTabs.map(item => {
             const Icon = item.icon;
