@@ -2352,28 +2352,45 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
    AUTENTICACIÓN
 --------------------------------------------------------- */
 
-function AuthShell({ children }) {
+function AuthShell({ children, mode = "dark", setMode }) {
   const viewportHeight = useViewportHeight();
+  const glow = mode === "dark" ? "#4FC3F7" : "#FF6B00";
   return (
     <div style={{
       ...fontBody, height: viewportHeight ? `${viewportHeight}px` : "100dvh", overflowY: "auto", background: COLORS.ink, color: COLORS.paper, display: "flex", alignItems: "center", justifyContent: "center",
       paddingTop: "max(20px, env(safe-area-inset-top, 0px))", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))",
       paddingLeft: "max(20px, env(safe-area-inset-left, 0px))", paddingRight: "max(20px, env(safe-area-inset-right, 0px))",
     }}>
-      <div style={{ width: "100%", maxWidth: 380, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 28 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, justifyContent: "center" }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, overflow: "hidden", display: "flex", flexShrink: 0 }}><ProgoMark size={38} mode="dark" /></div>
-          <ProgoWordmark height={18} mode="dark" />
+      <div style={{ width: "100%", maxWidth: 380, position: "relative" }}>
+        {setMode && (
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginBottom: 14, padding: "0 4px" }}>
+            <Sun size={14} color={mode === "dark" ? COLORS.muted : COLORS.gold} />
+            <AppleToggle checked={mode === "dark"} onChange={() => setMode(m => m === "dark" ? "light" : "dark")} />
+            <Moon size={14} color={mode === "dark" ? COLORS.violet : COLORS.muted} />
+          </div>
+        )}
+        <div style={{
+          background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 24, padding: 32,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.35)", position: "relative", overflow: "hidden",
+        }}>
+          <div style={{
+            position: "absolute", top: -80, left: "50%", transform: "translateX(-50%)",
+            width: 260, height: 200, background: glow, opacity: 0.16, filter: "blur(60px)", pointerEvents: "none",
+          }} />
+          <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, marginBottom: 28 }}>
+            <div style={{ width: 52, height: 52, borderRadius: 14, overflow: "hidden", display: "flex", flexShrink: 0 }}><ProgoMark size={52} mode={mode} /></div>
+            <ProgoWordmark height={20} mode={mode} />
+          </div>
+          <div style={{ position: "relative" }}>{children}</div>
         </div>
-        {children}
       </div>
     </div>
   );
 }
 
-function SetupNotice() {
+function SetupNotice({ mode, setMode }) {
   return (
-    <AuthShell>
+    <AuthShell mode={mode} setMode={setMode}>
       <p style={{ ...fontDisplay, fontSize: 16, fontWeight: 700, margin: "0 0 10px" }}>Falta conectar Supabase</p>
       <p style={{ ...fontBody, fontSize: 13.5, color: COLORS.muted, margin: "0 0 10px", lineHeight: 1.5 }}>
         Crea un proyecto gratis en supabase.com y pega tu <b>Project URL</b> y <b>anon public key</b> en el archivo <code style={{ ...fontMono, background: COLORS.elevated, padding: "1px 5px", borderRadius: 4 }}>.env</code> de este proyecto (variables <code style={{ ...fontMono }}>VITE_SUPABASE_URL</code> y <code style={{ ...fontMono }}>VITE_SUPABASE_ANON_KEY</code>), luego reinicia el servidor.
@@ -2385,8 +2402,8 @@ function SetupNotice() {
   );
 }
 
-function AuthScreen() {
-  const [mode, setMode] = useState("login");
+function AuthScreen({ mode, setMode }) {
+  const [authTab, setAuthTab] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -2394,7 +2411,7 @@ function AuthScreen() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  function switchMode(next) { setMode(next); setError(""); setNotice(""); }
+  function switchTab(next) { setAuthTab(next); setError(""); setNotice(""); }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -2402,7 +2419,7 @@ function AuthScreen() {
     if (!email.trim() || !password) { setError("Ingresa tu correo y contraseña."); return; }
     setLoading(true);
     setRememberMe(remember);
-    if (mode === "login") {
+    if (authTab === "login") {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) setError(error.message);
     } else {
@@ -2413,23 +2430,31 @@ function AuthScreen() {
     setLoading(false);
   }
 
-  const tabBtnStyle = active => ({
-    ...fontBody, flex: 1, padding: "9px 0", border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13.5,
-    background: active ? COLORS.teal : "transparent", color: active ? COLORS.onAccent : COLORS.muted,
-  });
-
   return (
-    <AuthShell>
-      <div style={{ display: "flex", borderRadius: 10, border: `1px solid ${COLORS.border}`, overflow: "hidden", marginBottom: 20 }}>
-        <button type="button" onClick={() => switchMode("login")} style={tabBtnStyle(mode === "login")}>Iniciar sesión</button>
-        <button type="button" onClick={() => switchMode("signup")} style={tabBtnStyle(mode === "signup")}>Crear cuenta</button>
+    <AuthShell mode={mode} setMode={setMode}>
+      <div style={{ position: "relative", display: "flex", background: COLORS.elevated, borderRadius: 14, padding: 4, marginBottom: 24 }}>
+        <div style={{
+          position: "absolute", top: 4, bottom: 4, left: authTab === "login" ? 4 : "50%",
+          width: "calc(50% - 4px)", background: COLORS.card, borderRadius: 10,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.18)", transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+        }} />
+        <button type="button" onClick={() => switchTab("login")} style={{
+          ...fontBody, position: "relative", flex: 1, padding: "9px 0", border: "none", background: "transparent",
+          cursor: "pointer", fontWeight: 700, fontSize: 13.5, color: authTab === "login" ? COLORS.paper : COLORS.muted,
+          transition: "color 0.2s",
+        }}>Iniciar sesión</button>
+        <button type="button" onClick={() => switchTab("signup")} style={{
+          ...fontBody, position: "relative", flex: 1, padding: "9px 0", border: "none", background: "transparent",
+          cursor: "pointer", fontWeight: 700, fontSize: 13.5, color: authTab === "signup" ? COLORS.paper : COLORS.muted,
+          transition: "color 0.2s",
+        }}>Crear cuenta</button>
       </div>
 
       <form onSubmit={handleSubmit}>
         <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Correo electrónico</label>
         <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@correo.com" style={inputStyle()} autoComplete="email" />
         <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Contraseña</label>
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={inputStyle()} autoComplete={mode === "login" ? "current-password" : "new-password"} />
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" style={inputStyle()} autoComplete={authTab === "login" ? "current-password" : "new-password"} />
 
         <label style={{ ...fontBody, display: "flex", alignItems: "center", gap: 8, color: COLORS.muted, fontSize: 13, margin: "-4px 0 16px", cursor: "pointer" }}>
           <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} style={{ width: 16, height: 16, accentColor: COLORS.teal, cursor: "pointer" }} />
@@ -2440,10 +2465,11 @@ function AuthScreen() {
         {notice && <p style={{ ...fontBody, color: COLORS.teal, fontSize: 12.5, margin: "0 0 12px" }}>{notice}</p>}
 
         <button type="submit" disabled={loading} style={{
-          ...fontBody, width: "100%", background: COLORS.teal, color: COLORS.onAccent, fontWeight: 700, fontSize: 14,
-          border: "none", borderRadius: 10, padding: "11px 0", cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1,
+          ...fontBody, width: "100%", background: COLORS.teal, color: COLORS.onAccent, fontWeight: 700, fontSize: 14.5,
+          border: "none", borderRadius: 12, padding: "13px 0", cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1,
+          boxShadow: `0 8px 20px ${COLORS.teal}40`, transition: "transform 0.15s, box-shadow 0.15s",
         }}>
-          {loading ? "Un momento…" : mode === "login" ? "Entrar" : "Crear cuenta"}
+          {loading ? "Un momento…" : authTab === "login" ? "Entrar" : "Crear cuenta"}
         </button>
       </form>
     </AuthShell>
@@ -2672,12 +2698,12 @@ export default function App() {
 
   Object.assign(COLORS, mode === "dark" ? DARK_THEME : LIGHT_THEME);
 
-  if (!isSupabaseConfigured) return <SetupNotice />;
-  if (authLoading) return <AuthShell><p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, textAlign: "center", margin: 0 }}>Cargando…</p></AuthShell>;
-  if (disabledNotice) return <AuthShell><p style={{ ...fontBody, color: COLORS.coral, fontSize: 13.5, textAlign: "center", margin: 0 }}>Tu cuenta fue desactivada. Contacta al administrador.</p></AuthShell>;
-  if (!session) return <AuthScreen />;
+  if (!isSupabaseConfigured) return <SetupNotice mode={mode} setMode={setMode} />;
+  if (authLoading) return <AuthShell mode={mode} setMode={setMode}><p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, textAlign: "center", margin: 0 }}>Cargando…</p></AuthShell>;
+  if (disabledNotice) return <AuthShell mode={mode} setMode={setMode}><p style={{ ...fontBody, color: COLORS.coral, fontSize: 13.5, textAlign: "center", margin: 0 }}>Tu cuenta fue desactivada. Contacta al administrador.</p></AuthShell>;
+  if (!session) return <AuthScreen mode={mode} setMode={setMode} />;
   if (profileError) return (
-    <AuthShell>
+    <AuthShell mode={mode} setMode={setMode}>
       <p style={{ ...fontBody, color: COLORS.coral, fontSize: 13.5, textAlign: "center", margin: "0 0 16px", lineHeight: 1.5 }}>{profileError}</p>
       <button onClick={() => supabase.auth.signOut()} style={{
         ...fontBody, width: "100%", background: "transparent", border: `1px solid ${COLORS.border}`, color: COLORS.muted,
@@ -2685,7 +2711,7 @@ export default function App() {
       }}>Cerrar sesión</button>
     </AuthShell>
   );
-  if (profileLoading || !profile) return <AuthShell><p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, textAlign: "center", margin: 0 }}>Cargando tu perfil…</p></AuthShell>;
+  if (profileLoading || !profile) return <AuthShell mode={mode} setMode={setMode}><p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, textAlign: "center", margin: 0 }}>Cargando tu perfil…</p></AuthShell>;
 
   function selectView(key) { setView(key); setNavOpen(false); }
 
