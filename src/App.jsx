@@ -149,62 +149,6 @@ function useViewportHeight() {
   return height;
 }
 
-// Panel de diagnóstico TEMPORAL — muestra en pantalla las medidas reales que
-// el navegador del usuario calcula, para diagnosticar por qué la barra
-// inferior se ve mal posicionada en su dispositivo específico. Quitar una
-// vez resuelto.
-function DebugOverlay({ viewportHeight }) {
-  const [info, setInfo] = useState(null);
-  useEffect(() => {
-    function measure() {
-      const bar = document.querySelector("[data-bottom-bar]");
-      const r = bar ? bar.getBoundingClientRect() : null;
-      setInfo({
-        innerH: window.innerHeight,
-        vvH: window.visualViewport?.height,
-        vvOffsetTop: window.visualViewport?.offsetTop,
-        vvScale: window.visualViewport?.scale,
-        docClientH: document.documentElement.clientHeight,
-        bodyClientH: document.body.clientHeight,
-        screenH: window.screen?.height,
-        dpr: window.devicePixelRatio,
-        standalone: window.navigator.standalone,
-        barTop: r ? Math.round(r.top) : null,
-        barBottom: r ? Math.round(r.bottom) : null,
-        barHeight: r ? Math.round(r.height) : null,
-        scrollY: window.scrollY,
-      });
-    }
-    measure();
-    const id = setInterval(measure, 400);
-    window.addEventListener("resize", measure);
-    return () => { clearInterval(id); window.removeEventListener("resize", measure); };
-  }, []);
-  if (!info) return null;
-  const line = (label, value) => `${label}: ${value}\n`;
-  return (
-    <div style={{
-      position: "fixed", top: 4, left: 4, right: 4, zIndex: 99999,
-      background: "rgba(0,0,0,0.88)", color: "#5CFF7A", fontFamily: "monospace",
-      fontSize: 10, padding: 8, borderRadius: 8, whiteSpace: "pre", lineHeight: 1.5,
-      pointerEvents: "none",
-    }}>
-      {line("hook viewportHeight", viewportHeight)}
-      {line("window.innerHeight", info.innerH)}
-      {line("visualViewport.height", info.vvH)}
-      {line("visualViewport.offsetTop", info.vvOffsetTop)}
-      {line("visualViewport.scale", info.vvScale)}
-      {line("doc.clientHeight", info.docClientH)}
-      {line("body.clientHeight", info.bodyClientH)}
-      {line("screen.height", info.screenH)}
-      {line("devicePixelRatio", info.dpr)}
-      {line("navigator.standalone", info.standalone)}
-      {line("window.scrollY", info.scrollY)}
-      {line("bar top/bottom/height", `${info.barTop} / ${info.barBottom} / ${info.barHeight}`)}
-    </div>
-  );
-}
-
 const MONTH_LABEL = "Julio 2026";
 const CAL_YEAR = 2026;
 const CAL_MONTH = 6; // 0-indexed = julio
@@ -3077,7 +3021,6 @@ export default function App() {
 
   return (
     <div style={{ ...fontBody, display: "flex", flexDirection: isMobile ? "column" : "row", height: viewportHeight ? `${viewportHeight}px` : "100dvh", background: COLORS.ink, color: COLORS.paper }}>
-      {isMobile && <DebugOverlay viewportHeight={viewportHeight} />}
       {isMobile ? (
         <>
           <div style={{
@@ -3153,35 +3096,32 @@ export default function App() {
       </div>
 
       {isMobile && (
-        <div data-bottom-bar style={{
+        <div style={{
           flexShrink: 0, display: "flex", justifyContent: "space-between",
-          background: COLORS.card + "f2", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-          borderTop: `1px solid ${COLORS.border}`, borderTopLeftRadius: 22, borderTopRightRadius: 22,
-          boxShadow: "0 -6px 24px rgba(0,0,0,0.18)", padding: "6px 6px calc(6px + env(safe-area-inset-bottom, 0px))",
+          background: COLORS.ink, borderTop: `1px solid ${COLORS.border}`,
+          padding: "8px 4px calc(8px + env(safe-area-inset-bottom, 0px))",
         }}>
           {bottomTabs.map(item => {
             const Icon = item.icon;
             const active = view === item.key;
             return (
               <button key={item.key} onClick={() => selectView(item.key)} style={{
-                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
-                background: active ? COLORS.elevated : "transparent", borderRadius: 20,
-                border: "none", cursor: "pointer", padding: "7px 4px",
-                color: active ? COLORS.paper : COLORS.muted,
+                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
+                background: "transparent", border: "none", cursor: "pointer", padding: "4px 0",
+                color: active ? item.accent : COLORS.muted,
               }}>
-                <Icon size={21} strokeWidth={active ? 2.2 : 1.8} />
-                <span style={{ ...fontBody, fontSize: 9.5, fontWeight: active ? 700 : 500 }}>{BOTTOM_TAB_LABELS[item.key]}</span>
+                <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
+                <span style={{ ...fontBody, fontSize: 10, fontWeight: active ? 700 : 500 }}>{BOTTOM_TAB_LABELS[item.key]}</span>
               </button>
             );
           })}
           <button onClick={() => setNavOpen(true)} style={{
-            flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
-            background: moreActive ? COLORS.elevated : "transparent", borderRadius: 20,
-            border: "none", cursor: "pointer", padding: "7px 4px",
-            color: moreActive ? COLORS.paper : COLORS.muted,
+            flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
+            background: "transparent", border: "none", cursor: "pointer", padding: "4px 0",
+            color: moreActive ? COLORS.gold : COLORS.muted,
           }}>
-            <MoreHorizontal size={21} strokeWidth={moreActive ? 2.2 : 1.8} />
-            <span style={{ ...fontBody, fontSize: 9.5, fontWeight: moreActive ? 700 : 500 }}>Más</span>
+            <MoreHorizontal size={22} strokeWidth={moreActive ? 2.2 : 1.8} />
+            <span style={{ ...fontBody, fontSize: 10, fontWeight: moreActive ? 700 : 500 }}>Más</span>
           </button>
         </div>
       )}
