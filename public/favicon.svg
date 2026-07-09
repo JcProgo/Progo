@@ -1,12 +1,14 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="24" height="24" rx="7" fill="url(#progoGrad)" />
-  <ellipse cx="7.5" cy="6" rx="7" ry="5" fill="#fff" opacity="0.1" />
-  <rect x="7" y="5" width="4" height="14" rx="2" fill="#fff" />
-  <path d="M11 5L15 5Q16.4 5 17 5.9L20 9L17 12.1Q16.4 13 15 13L11 13Z" fill="#fff" />
+<svg width="140" height="140" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="progoGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0F2049" />
-      <stop offset="1" stop-color="#2B6DF0" />
+    <linearGradient id="progoGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0A2540"/>
+      <stop offset="100%" stop-color="#4FC3F7"/>
     </linearGradient>
   </defs>
+  <rect width="140" height="140" rx="32" fill="url(#progoGrad)"/>
+  <rect x="30" y="90" width="18" height="30" rx="6" fill="#FFFFFF"/>
+  <rect x="58" y="70" width="18" height="50" rx="6" fill="#FFFFFF"/>
+  <rect x="86" y="45" width="18" height="75" rx="6" fill="#FFFFFF"/>
+  <path d="M108 38 L130 16 M130 16 L130 30 M130 16 L116 16"
+        stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
 </svg>
