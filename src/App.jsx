@@ -2567,6 +2567,17 @@ export default function App() {
   const isMobile = useIsMobile();
 
   useEffect(() => {
+    // El fondo de <body>/meta theme-color es el que se ve en cualquier
+    // hueco que Safari deje por fuera de la app (p.ej. según el estado de
+    // su barra de herramientas) — debe seguir el tema activo, si no
+    // queda un color fijo (oscuro) asomando cuando la app está en claro.
+    const themeColor = mode === "dark" ? DARK_THEME.ink : LIGHT_THEME.ink;
+    document.body.style.background = themeColor;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", themeColor);
+  }, [mode]);
+
+  useEffect(() => {
     if (!profile) return;
     let cancelled = false;
     setFinanceLoading(true);
