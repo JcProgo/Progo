@@ -149,6 +149,77 @@ function useViewportHeight() {
   return height;
 }
 
+// Panel de diagnóstico TEMPORAL — muestra en pantalla las medidas reales que
+// el navegador del usuario calcula, para diagnosticar por qué queda un
+// espacio debajo de la barra inferior en su dispositivo específico. Quitar
+// una vez resuelto.
+function DebugOverlay({ viewportHeight }) {
+  const [info, setInfo] = useState(null);
+  const probeRef = useRef(null);
+  useEffect(() => {
+    function measure() {
+      const bar = document.querySelector("[data-bottom-bar]");
+      const r = bar ? bar.getBoundingClientRect() : null;
+      const wrapper = document.querySelector("[data-app-wrapper]");
+      const wr = wrapper ? wrapper.getBoundingClientRect() : null;
+      const safeBottom = probeRef.current ? getComputedStyle(probeRef.current).paddingBottom : "n/a";
+      setInfo({
+        innerH: window.innerHeight,
+        vvH: window.visualViewport?.height,
+        vvOffsetTop: window.visualViewport?.offsetTop,
+        vvScale: window.visualViewport?.scale,
+        docClientH: document.documentElement.clientHeight,
+        bodyClientH: document.body.clientHeight,
+        screenH: window.screen?.height,
+        dpr: window.devicePixelRatio,
+        standalone: window.navigator.standalone,
+        wrapperTop: wr ? Math.round(wr.top) : null,
+        wrapperBottom: wr ? Math.round(wr.bottom) : null,
+        wrapperHeight: wr ? Math.round(wr.height) : null,
+        barTop: r ? Math.round(r.top) : null,
+        barBottom: r ? Math.round(r.bottom) : null,
+        barHeight: r ? Math.round(r.height) : null,
+        gapBelowBar: r ? Math.round(window.innerHeight - r.bottom) : null,
+        safeAreaInsetBottom: safeBottom,
+        scrollY: window.scrollY,
+      });
+    }
+    measure();
+    const id = setInterval(measure, 400);
+    window.addEventListener("resize", measure);
+    return () => { clearInterval(id); window.removeEventListener("resize", measure); };
+  }, []);
+  if (!info) return null;
+  const line = (label, value) => `${label}: ${value}\n`;
+  return (
+    <>
+      <div ref={probeRef} style={{ position: "fixed", top: -9999, paddingBottom: "env(safe-area-inset-bottom, 0px)" }} />
+      <div style={{
+        position: "fixed", top: 4, left: 4, right: 4, zIndex: 99999,
+        background: "rgba(0,0,0,0.88)", color: "#5CFF7A", fontFamily: "monospace",
+        fontSize: 9.5, padding: 8, borderRadius: 8, whiteSpace: "pre", lineHeight: 1.5,
+        pointerEvents: "none",
+      }}>
+        {line("hook viewportHeight", viewportHeight)}
+        {line("window.innerHeight", info.innerH)}
+        {line("visualViewport.height", info.vvH)}
+        {line("visualViewport.offsetTop", info.vvOffsetTop)}
+        {line("visualViewport.scale", info.vvScale)}
+        {line("doc.clientHeight", info.docClientH)}
+        {line("body.clientHeight", info.bodyClientH)}
+        {line("screen.height", info.screenH)}
+        {line("devicePixelRatio", info.dpr)}
+        {line("navigator.standalone", info.standalone)}
+        {line("safe-area-inset-bottom", info.safeAreaInsetBottom)}
+        {line("window.scrollY", info.scrollY)}
+        {line("wrapper top/bottom/height", `${info.wrapperTop} / ${info.wrapperBottom} / ${info.wrapperHeight}`)}
+        {line("bar top/bottom/height", `${info.barTop} / ${info.barBottom} / ${info.barHeight}`)}
+        {line("GAP BELOW BAR", info.gapBelowBar)}
+      </div>
+    </>
+  );
+}
+
 const MONTH_LABEL = "Julio 2026";
 const CAL_YEAR = 2026;
 const CAL_MONTH = 6; // 0-indexed = julio
@@ -3020,7 +3091,8 @@ export default function App() {
   );
 
   return (
-    <div style={{ ...fontBody, display: "flex", flexDirection: isMobile ? "column" : "row", height: viewportHeight ? `${viewportHeight}px` : "100dvh", background: COLORS.ink, color: COLORS.paper }}>
+    <div data-app-wrapper style={{ ...fontBody, display: "flex", flexDirection: isMobile ? "column" : "row", height: viewportHeight ? `${viewportHeight}px` : "100dvh", background: COLORS.ink, color: COLORS.paper }}>
+      {isMobile && <DebugOverlay viewportHeight={viewportHeight} />}
       {isMobile ? (
         <>
           <div style={{
@@ -3096,7 +3168,7 @@ export default function App() {
       </div>
 
       {isMobile && (
-        <div style={{
+        <div data-bottom-bar style={{
           flexShrink: 0, display: "flex", justifyContent: "space-between",
           background: COLORS.ink, borderTop: `1px solid ${COLORS.border}`,
           padding: "8px 4px calc(8px + env(safe-area-inset-bottom, 0px))",
