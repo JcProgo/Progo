@@ -115,11 +115,17 @@ Dashboard general: gastos del mes, tareas completadas hoy, productos ganadores, 
 
 ### Rutina
 - **Escritorio:** timeline por horas (día/semana), bloques con tipo (`enfoque`/`operativo`/`descanso`/`movimiento`/`otra` con color custom vía `<input type=color>`), drag para mover/redimensionar, repetición (diario/semanal). Sin cambios — el usuario no reportó problemas con el drag en mouse.
-- **Móvil (rediseñado):** la vista "día" reemplaza el timeline de arrastre por una **agenda vertical de tarjetas** (mismos primitivos que Hábitos: `IconBadge` + título + rango horario + `CheckCircle`), ordenadas por hora de inicio. Tocar una tarjeta abre el modal de edición existente (sin cambios ahí). Cero arrastre en móvil. La pestaña "Semana" se oculta en móvil (`viewMode` se resetea a `"dia"` vía `useEffect` cuando `isMobile` pasa a `true`) — la grilla de 7 columnas no cabe bien en una pantalla de teléfono.
+- **Móvil (rediseñado, dos rondas):** la vista "día" reemplaza el timeline de arrastre por una **agenda vertical de tarjetas** (mismos primitivos que Hábitos: `IconBadge` + título + rango horario + `CheckCircle`), ordenadas por hora de inicio. Tocar una tarjeta abre el modal de edición existente (sin cambios ahí). Cero arrastre en móvil.
+- **3 píldoras estilo Instagram** (`mobileSection`: `hoy` / `resumen` / `semana`, referencia visual: filtros Principal/Solicitudes/General de IG) — en vez de apilar todo, en móvil solo se ve la sección activa:
+  - **Hoy** — agenda del día + "Planea tu día".
+  - **Resumen** — Composición del día + Cierre del día juntos.
+  - **Semana** — nueva vista "semana de un vistazo": una `SoftCard` por día (hoy resaltado), hasta 4 actividades con punto de color + hora + título, "+N más" si hay más, tocar un día salta a la agenda de ese día (`setSelectedDate` + `setMobileSection("hoy")`). Reemplaza a la grilla de 7 columnas con drag (esa sigue existiendo pero solo en escritorio, `!isMobile`).
+  - En escritorio (`!isMobile`) las píldoras no existen — Composición, Planea tu día y Cierre del día se ven todas apiladas como siempre.
+- Insignia de fecha junto al selector (HOY / MAÑANA / PASADO MAÑANA / AYER / OTRO DÍA), calculada en cada render comparando `selectedDate` contra `todayISO` — agregada para hacer inequívoco qué día se está viendo, tras un reporte de bug de fechas que **no se pudo reproducir en un servidor de dev recién reiniciado** (sí aparecía en un servidor con muchos parches de HMR acumulados de la misma sesión de edición — artefacto de herramienta, no bug de la app; ver §9 si vuelve a reportarse).
 - Panel "Planea tu día": **ya no se arrastra** (se quitó `startPanelDrag`/`ghost` por completo) — tocar un pendiente llama a `scheduleNow()`, que busca el próximo espacio libre de hoy y crea la actividad ahí directo (`source: {kind, id}` vinculada — completarla en Rutina completa el original y viceversa). Aplica tanto en móvil como escritorio.
 - Cierre del día: journal (rating, qué salió bien, qué mejorar, feeling emoji, notas) + % de cumplimiento del día.
 - Composición del día: barra de tiempo por tipo de bloque.
-- **Sin verificar con clic real** — se hizo por revisión de código + build/lint limpios, no había sesión activa en el navegador de preview en ese momento (a diferencia del rediseño de Hábitos, que sí se probó de punta a punta).
+- **Verificado con clics reales** en la sesión de las 3 píldoras (contra la cuenta real del usuario, en un navegador de preview con sesión ya activa): navegación de fechas día por día con la insignia correcta, cambio entre las 3 píldoras, la vista Semana, y tocar una actividad real abre su editor (se canceló sin guardar para no tocar datos reales).
 
 ### Trading
 - Calendario mensual estilo TradeZella (verde/rojo por día), navegación de mes.
