@@ -5,7 +5,7 @@ import {
   Plus, Trash2, ChevronRight, TrendingUp, TrendingDown, Coffee,
   UtensilsCrossed, ShoppingCart, Car, Home as HomeIcon, Zap,
   HeartPulse, ShoppingBag, Trash, GraduationCap, MoreHorizontal, Check,
-  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, LogOut, Users, ShieldCheck, Pencil, PiggyBank, Tag
+  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, LogOut, Users, ShieldCheck, Pencil, PiggyBank, Tag, StickyNote, Pin
 } from "lucide-react";
 
 // recharts (~200KB+ del bundle) se carga de forma perezosa vía import() dinámico
@@ -1573,6 +1573,141 @@ function Productos({ products, setProducts, insertProductRow, patchProductRow, d
 }
 
 /* ---------------------------------------------------------
+   NOTAS
+--------------------------------------------------------- */
+
+const NOTE_TONE_KEYS = ["gold", "teal", "coral", "violet"];
+
+function Notas({ notes, setNotes, insertNoteRow, patchNoteRow, deleteNoteRow }) {
+  const [editor, setEditor] = useState(null); // { mode, id?, title, content, toneKey }
+  const [saving, setSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const isMobile = useIsMobile();
+
+  function openNew() { setEditor({ mode: "new", title: "", content: "", toneKey: "gold" }); }
+  function openEdit(n) { setEditor({ mode: "edit", id: n.id, title: n.title, content: n.content, toneKey: n.toneKey }); }
+  function closeEditor() { setEditor(null); }
+
+  async function save() {
+    if (!editor.title.trim() && !editor.content.trim()) { closeEditor(); return; }
+    setSaving(true);
+    const payload = { title: editor.title.trim() || "Sin título", content: editor.content, toneKey: editor.toneKey };
+    if (editor.mode === "new") {
+      const created = await insertNoteRow(payload);
+      if (created) setNotes(prev => [created, ...prev]);
+    } else {
+      const updatedAt = await patchNoteRow(editor.id, payload);
+      setNotes(prev => prev.map(n => n.id === editor.id ? { ...n, ...payload, updatedAt: updatedAt || n.updatedAt } : n)
+        .sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt))));
+    }
+    setSaving(false);
+    closeEditor();
+  }
+
+  async function togglePinned(n) {
+    setNotes(prev => prev.map(x => x.id === n.id ? { ...x, pinned: !x.pinned } : x)
+      .sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt))));
+    await patchNoteRow(n.id, { pinned: !n.pinned });
+  }
+
+  async function remove(id) {
+    setNotes(prev => prev.filter(n => n.id !== id));
+    deleteNoteRow(id);
+    setConfirmDeleteId(null);
+    if (editor?.id === id) closeEditor();
+  }
+
+  function relTime(iso) {
+    if (!iso) return "";
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "ahora";
+    if (mins < 60) return `hace ${mins} min`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `hace ${hrs} h`;
+    const days = Math.floor(hrs / 24);
+    if (days < 30) return `hace ${days} d`;
+    return new Date(iso).toLocaleDateString("es-CO");
+  }
+
+  return (
+    <div>
+      <SectionHeader icon={StickyNote} title="Notas" subtitle="Ideas, pendientes sueltos, lo que quieras anotar" accent={COLORS.gold}
+        right={<PrimaryButton onClick={openNew} accent={COLORS.gold}><Plus size={16} /> Nueva nota</PrimaryButton>}
+      />
+
+      {notes.length === 0 ? (
+        <SoftCard style={{ padding: 28 }}>
+          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, margin: 0, textAlign: "center" }}>No hay notas todavía. Crea la primera arriba.</p>
+        </SoftCard>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+          {notes.map(n => {
+            const tone = COLORS[n.toneKey] || COLORS.gold;
+            return (
+              <div key={n.id} onClick={() => openEdit(n)} style={{
+                background: COLORS.card, border: `1px solid ${COLORS.border}`, borderTop: `3px solid ${tone}`,
+                borderRadius: 14, padding: 14, cursor: "pointer", display: "flex", flexDirection: "column",
+                minHeight: 120, position: "relative",
+              }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, marginBottom: 6 }}>
+                  <p style={{ ...fontDisplay, color: COLORS.paper, fontSize: 14, fontWeight: 700, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{n.title}</p>
+                  <button onClick={e => { e.stopPropagation(); togglePinned(n); }} style={{
+                    background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0,
+                    color: n.pinned ? tone : COLORS.muted, display: "flex",
+                  }}><Pin size={14} fill={n.pinned ? tone : "none"} /></button>
+                </div>
+                <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: 0, flex: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical", whiteSpace: "pre-wrap" }}>{n.content}</p>
+                <p style={{ ...fontMono, color: COLORS.muted, fontSize: 10.5, margin: "8px 0 0" }}>{relTime(n.updatedAt)}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {editor && (
+        <div onClick={closeEditor} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(8,10,14,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 24, width: "100%", maxWidth: 460, maxHeight: "88vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <p style={{ ...fontDisplay, color: COLORS.paper, fontSize: 17, fontWeight: 700, margin: 0 }}>{editor.mode === "new" ? "Nueva nota" : "Editar nota"}</p>
+              <div style={{ display: "flex", gap: 6 }}>
+                {NOTE_TONE_KEYS.map(k => (
+                  <div key={k} onClick={() => setEditor({ ...editor, toneKey: k })} style={{
+                    width: 22, height: 22, borderRadius: 7, cursor: "pointer", background: COLORS[k],
+                    outline: editor.toneKey === k ? `2px solid ${COLORS.paper}` : "none", outlineOffset: 2,
+                  }} />
+                ))}
+              </div>
+            </div>
+            <input value={editor.title} onChange={e => setEditor({ ...editor, title: e.target.value })} placeholder="Título" style={{ ...inputStyle(), fontWeight: 700, fontSize: 16 }} autoFocus />
+            <textarea value={editor.content} onChange={e => setEditor({ ...editor, content: e.target.value })} placeholder="Escribe aquí…" style={{ ...inputStyle(), minHeight: 180, resize: "vertical" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <PrimaryButton onClick={save} accent={COLORS.gold}>{saving ? "Guardando…" : <><Check size={16} /> Guardar</>}</PrimaryButton>
+              {editor.mode === "edit" && (
+                confirmDeleteId === editor.id ? (
+                  <>
+                    <span style={{ ...fontBody, fontSize: 12.5, color: COLORS.muted }}>¿Eliminar?</span>
+                    <button onClick={() => remove(editor.id)} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.coral, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>Sí</button>
+                    <button onClick={() => setConfirmDeleteId(null)} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>No</button>
+                  </>
+                ) : (
+                  <button onClick={() => setConfirmDeleteId(editor.id)} style={{
+                    ...fontBody, display: "flex", alignItems: "center", gap: 6, background: "transparent",
+                    border: `1px solid ${COLORS.coral}`, color: COLORS.coral, fontWeight: 600, fontSize: 14,
+                    borderRadius: 10, padding: "10px 16px", cursor: "pointer",
+                  }}><Trash2 size={15} /> Eliminar</button>
+                )
+              )}
+              <button onClick={closeEditor} style={{ ...fontBody, marginLeft: "auto", background: "transparent", border: "none", color: COLORS.muted, fontSize: 14, cursor: "pointer" }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
    RUTINA — línea de tiempo por horas (día / semana)
 --------------------------------------------------------- */
 
@@ -2711,6 +2846,7 @@ const NAV = [
   { key: "tareas", label: "Tareas diarias", icon: CheckSquare, get accent() { return COLORS.gold; } },
   { key: "habitos", label: "Hábitos", icon: Flame, get accent() { return COLORS.teal; } },
   { key: "productos", label: "Productos testeados", icon: Package, get accent() { return COLORS.teal; } },
+  { key: "notas", label: "Notas", icon: StickyNote, get accent() { return COLORS.gold; } },
 ];
 
 // Barra inferior móvil (estilo iOS/Instagram): solo las 4 secciones de uso más
@@ -2775,6 +2911,7 @@ export default function App() {
   const [tasks, setTasks] = useState({ diario: [], semanal: [], mensual: [] });
   const [habits, setHabits] = useState([]);
   const [products, setProducts] = useState([]);
+  const [notes, setNotes] = useState([]);
   const [activities, setActivities] = useState([]);
   const [completions, setCompletions] = useState({});
   const [journals, setJournals] = useState({});
@@ -2802,7 +2939,7 @@ export default function App() {
     let cancelled = false;
     setFinanceLoading(true);
     (async () => {
-      const [goalsRes, incomesRes, egresosRes, catsRes, tasksRes, expensesRes, habitsRes, productsRes, activitiesRes, completionsRes, journalsRes, tradesRes] = await Promise.all([
+      const [goalsRes, incomesRes, egresosRes, catsRes, tasksRes, expensesRes, habitsRes, productsRes, notesRes, activitiesRes, completionsRes, journalsRes, tradesRes] = await Promise.all([
         supabase.from("goals").select("*").order("id", { ascending: true }),
         supabase.from("incomes").select("*").order("income_date", { ascending: false }).order("id", { ascending: false }),
         supabase.from("egresos").select("*").order("expense_date", { ascending: false }).order("id", { ascending: false }),
@@ -2811,6 +2948,7 @@ export default function App() {
         supabase.from("expenses").select("*").order("date", { ascending: false }).order("id", { ascending: false }),
         supabase.from("habits").select("*").order("id", { ascending: true }),
         supabase.from("products").select("*").order("id", { ascending: true }),
+        supabase.from("notes").select("*").order("pinned", { ascending: false }).order("updated_at", { ascending: false }),
         supabase.from("activities").select("*").order("id", { ascending: true }),
         supabase.from("activity_completions").select("*"),
         supabase.from("journals").select("*"),
@@ -2839,6 +2977,8 @@ export default function App() {
       else console.error("Error cargando hábitos:", habitsRes.error.message);
       if (!productsRes.error) setProducts((productsRes.data || []).map(r => ({ id: r.id, name: r.name, testDate: r.test_date, investment: Number(r.investment), sales: Number(r.sales), status: r.status, notes: r.notes })));
       else console.error("Error cargando productos:", productsRes.error.message);
+      if (!notesRes.error) setNotes((notesRes.data || []).map(r => ({ id: r.id, title: r.title, content: r.content, toneKey: r.tone_key, pinned: r.pinned, updatedAt: r.updated_at })));
+      else console.error("Error cargando notas:", notesRes.error.message);
       if (!activitiesRes.error) setActivities((activitiesRes.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, start: r.start_min, end: r.end_min, type: r.type, category: r.category, customColor: r.custom_color, description: r.description, repeat: r.repeat, source: r.source })));
       else console.error("Error cargando actividades:", activitiesRes.error.message);
       if (!completionsRes.error) {
@@ -3058,6 +3198,29 @@ export default function App() {
     if (error) console.error("Error eliminando producto:", error.message);
   }
 
+  // --- Persistencia de Notas (tabla `notes`) ---
+  async function insertNoteRow(payload) {
+    const { data, error } = await supabase.from("notes").insert({
+      user_id: session.user.id, title: payload.title, content: payload.content, tone_key: payload.toneKey,
+    }).select().single();
+    if (error) { console.error("Error creando nota:", error.message); return null; }
+    return { id: data.id, title: data.title, content: data.content, toneKey: data.tone_key, pinned: data.pinned, updatedAt: data.updated_at };
+  }
+  async function patchNoteRow(id, patch) {
+    const dbPatch = { updated_at: new Date().toISOString() };
+    if ("title" in patch) dbPatch.title = patch.title;
+    if ("content" in patch) dbPatch.content = patch.content;
+    if ("toneKey" in patch) dbPatch.tone_key = patch.toneKey;
+    if ("pinned" in patch) dbPatch.pinned = patch.pinned;
+    const { data, error } = await supabase.from("notes").update(dbPatch).eq("id", id).select().single();
+    if (error) { console.error("Error actualizando nota:", error.message); return null; }
+    return data.updated_at;
+  }
+  async function deleteNoteRow(id) {
+    const { error } = await supabase.from("notes").delete().eq("id", id);
+    if (error) console.error("Error eliminando nota:", error.message);
+  }
+
   // --- Persistencia de Rutina (tablas `activities`, `activity_completions`, `journals`) ---
   async function insertActivityRow(payload) {
     const { data, error } = await supabase.from("activities").insert({
@@ -3255,6 +3418,7 @@ export default function App() {
         {view === "tareas" && <Tareas tasks={tasks} setTasks={setTasks} insertTaskRow={insertTaskRow} patchTaskRow={patchTaskRow} deleteTaskRow={deleteTaskRow} />}
         {view === "habitos" && <Habitos habits={habits} setHabits={setHabits} insertHabitRow={insertHabitRow} patchHabitRow={patchHabitRow} deleteHabitRow={deleteHabitRow} />}
         {view === "productos" && <Productos products={products} setProducts={setProducts} insertProductRow={insertProductRow} patchProductRow={patchProductRow} deleteProductRow={deleteProductRow} />}
+        {view === "notas" && <Notas notes={notes} setNotes={setNotes} insertNoteRow={insertNoteRow} patchNoteRow={patchNoteRow} deleteNoteRow={deleteNoteRow} />}
         {view === "usuarios" && isAdmin && <Usuarios myId={session.user.id} />}
       </div>
 

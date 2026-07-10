@@ -2,7 +2,7 @@
 -- Corre este archivo completo en Supabase: Project -> SQL Editor -> New query -> pega y "Run".
 -- Es idempotente: usa "if not exists" / "add column if not exists" en todo,
 -- así que es seguro volver a correrlo en una base que ya tiene parte del esquema
--- (por ejemplo, para agregar solo la tabla `egresos`, que es lo único nuevo
+-- (por ejemplo, para agregar solo la tabla `notes`, que es lo único nuevo
 -- si ya corriste una versión anterior de este archivo).
 --
 -- Este archivo reemplaza el historial de migraciones incrementales
@@ -155,6 +155,26 @@ create table if not exists custom_categories (
 alter table custom_categories enable row level security;
 drop policy if exists "own rows" on custom_categories;
 create policy "own rows" on custom_categories for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ============================================================
+-- 5b. notes — Notas libres
+-- ============================================================
+
+create table if not exists notes (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  title text not null default '',
+  content text not null default '',
+  tone_key text not null default 'gold',
+  pinned boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table notes enable row level security;
+drop policy if exists "own rows" on notes;
+create policy "own rows" on notes for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index if not exists notes_user_updated_idx on notes (user_id, updated_at desc);
 
 -- ============================================================
 -- 6. tasks, expenses, habits, products, activities, activity_completions, journals, trades
