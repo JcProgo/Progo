@@ -410,7 +410,7 @@ function Resumen({ expenses, tasks, habits, products }) {
    GASTOS
 --------------------------------------------------------- */
 
-function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, customCategories, addCustomCategory, insertExpenseRow, patchExpenseRow, deleteExpenseRow }) {
+function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, customCategories, addCustomCategory, deleteCustomCategory, insertExpenseRow, patchExpenseRow, deleteExpenseRow }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [editingIncome, setEditingIncome] = useState(false);
   const [incomeInput, setIncomeInput] = useState("");
@@ -419,6 +419,7 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
   const [catForm, setCatForm] = useState({ name: "", color: "#4FA08F" });
   const [catError, setCatError] = useState("");
   const [savingCategory, setSavingCategory] = useState(false);
+  const [confirmDeleteCatId, setConfirmDeleteCatId] = useState(null);
 
   const catList = [...CAT_LIST, ...customCategories.map(c => c.name)];
 
@@ -518,20 +519,39 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
           const Icon = meta.icon;
           const amount = byCategory[cat] || 0;
           const pct = total ? ((amount / total) * 100).toFixed(1) : "0.0";
+          const customCat = customCategories.find(c => c.name === cat);
+          const confirming = confirmDeleteCatId === cat;
           return (
-            <div key={cat} onClick={() => setSelectedCategory(cat)} style={{
+            <div key={cat} onClick={() => !confirming && setSelectedCategory(cat)} style={{
               background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 12,
-              padding: "14px 16px", cursor: "pointer", transition: "border-color 0.15s",
+              padding: "14px 16px", cursor: confirming ? "default" : "pointer", transition: "border-color 0.15s",
+              position: "relative",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <div style={{ width: 28, height: 28, borderRadius: 8, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Icon size={15} color={meta.color} />
                 </div>
-                <span style={{ ...fontBody, fontSize: 13, color: COLORS.paper, fontWeight: 500, flex: 1 }}>{cat}</span>
-                <ChevronRight size={14} color={COLORS.muted} />
+                <span style={{ ...fontBody, fontSize: 13, color: COLORS.paper, fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat}</span>
+                {customCat ? (
+                  <button onClick={e => { e.stopPropagation(); setConfirmDeleteCatId(cat); }} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, padding: 2, display: "flex", flexShrink: 0 }}>
+                    <Trash2 size={13} />
+                  </button>
+                ) : (
+                  <ChevronRight size={14} color={COLORS.muted} />
+                )}
               </div>
-              <p style={{ ...fontMono, fontSize: 17, fontWeight: 600, color: COLORS.paper, margin: 0 }}>{fmtCOP(amount)}</p>
-              <p style={{ ...fontMono, fontSize: 11.5, color: COLORS.muted, margin: "2px 0 0" }}>{pct}% del total</p>
+              {confirming ? (
+                <div onClick={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ ...fontBody, fontSize: 12, color: COLORS.muted }}>¿Eliminar categoría?</span>
+                  <button onClick={() => { deleteCustomCategory(customCat.id); setConfirmDeleteCatId(null); if (selectedCategory === cat) setSelectedCategory(null); }} style={{ ...fontBody, fontSize: 12, fontWeight: 600, color: COLORS.coral, background: "none", border: "none", cursor: "pointer" }}>Sí</button>
+                  <button onClick={() => setConfirmDeleteCatId(null)} style={{ ...fontBody, fontSize: 12, color: COLORS.muted, background: "none", border: "none", cursor: "pointer" }}>No</button>
+                </div>
+              ) : (
+                <>
+                  <p style={{ ...fontMono, fontSize: 17, fontWeight: 600, color: COLORS.paper, margin: 0 }}>{fmtCOP(amount)}</p>
+                  <p style={{ ...fontMono, fontSize: 11.5, color: COLORS.muted, margin: "2px 0 0" }}>{pct}% del total</p>
+                </>
+              )}
             </div>
           );
         })}
@@ -3182,6 +3202,11 @@ export default function App() {
     setCustomCategories(prev => [...prev, created]);
     return { data: created };
   }
+  async function deleteCustomCategory(id) {
+    setCustomCategories(prev => prev.filter(c => c.id !== id));
+    const { error } = await supabase.from("custom_categories").delete().eq("id", id);
+    if (error) console.error("Error eliminando categoría:", error.message);
+  }
 
   // --- Persistencia de Tareas (tabla `tasks`) ---
   async function insertTaskRow(timeframe, title) {
@@ -3472,7 +3497,7 @@ export default function App() {
           </div>
         )}
         {view === "resumen" && <Resumen expenses={expenses} tasks={tasks} habits={habits} products={products} />}
-        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} addCustomCategory={addCustomCategory} insertExpenseRow={insertExpenseRow} patchExpenseRow={patchExpenseRow} deleteExpenseRow={deleteExpenseRow} />}
+        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} addCustomCategory={addCustomCategory} deleteCustomCategory={deleteCustomCategory} insertExpenseRow={insertExpenseRow} patchExpenseRow={patchExpenseRow} deleteExpenseRow={deleteExpenseRow} />}
         {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} egresos={egresos} addEgreso={addEgreso} editEgreso={editEgreso} deleteEgreso={deleteEgreso} financeLoading={financeLoading} />}
         {view === "metas" && <Metas goals={goals} setGoals={setGoals} incomes={incomes} insertGoalRow={insertGoalRow} patchGoalRow={patchGoalRow} deleteGoalRow={deleteGoalRow} financeLoading={financeLoading} />}
         {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} patchGoalRow={patchGoalRow} patchTaskRow={patchTaskRow} patchHabitRow={patchHabitRow} insertActivityRow={insertActivityRow} patchActivityRow={patchActivityRow} deleteActivityRow={deleteActivityRow} toggleCompletionRow={toggleCompletionRow} patchJournalRow={patchJournalRow} />}
