@@ -1646,6 +1646,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
   const todayISO = isoDateLocal(new Date());
   const [viewMode, setViewMode] = useState("dia");
   const [selectedDate, setSelectedDate] = useState(todayISO);
+  const [mobileSection, setMobileSection] = useState("hoy"); // hoy | resumen | semana
   const [editor, setEditor] = useState(null);
   const [nowMin, setNowMin] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); });
   const movedRef = useRef(false);
@@ -1905,6 +1906,11 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
 
   const labelStyle = { ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 };
   const navBtnStyle = { ...fontBody, background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.muted, cursor: "pointer", padding: "7px 12px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center" };
+  // En escritorio se ven todas las secciones apiladas (como siempre); en
+  // móvil solo la sección activa de las 3 píldoras (Hoy / Resumen / Semana).
+  const showHoySection = !isMobile || mobileSection === "hoy";
+  const showResumenSection = !isMobile || mobileSection === "resumen";
+  const showSemanaSection = isMobile && mobileSection === "semana";
 
   function PendingCard({ item, kind }) {
     const meta = SOURCE_META[kind];
@@ -1944,7 +1950,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
             ))}
           </div>
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => setSelectedDate(addDaysISO(selectedDate, viewMode === "dia" ? -1 : -7))} style={navBtnStyle}>
             <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} />
           </button>
@@ -1953,15 +1959,35 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
             <ChevronRight size={14} />
           </button>
           <span style={{ ...fontMono, color: COLORS.muted, fontSize: 12.5, marginLeft: 4 }}>{viewMode === "dia" ? dayLabel : weekLabel}</span>
+          {selectedDate === todayISO ? (
+            <span style={{ ...fontMono, fontSize: 10, fontWeight: 700, color: COLORS.teal, background: COLORS.teal + "1c", padding: "2px 8px", borderRadius: 20, letterSpacing: 0.4 }}>HOY</span>
+          ) : (
+            <span style={{ ...fontMono, fontSize: 10, fontWeight: 700, color: COLORS.muted, background: COLORS.elevated, padding: "2px 8px", borderRadius: 20, letterSpacing: 0.4 }}>
+              {selectedDate === addDaysISO(todayISO, 1) ? "MAÑANA" : selectedDate === addDaysISO(todayISO, 2) ? "PASADO MAÑANA" : selectedDate === addDaysISO(todayISO, -1) ? "AYER" : "OTRO DÍA"}
+            </span>
+          )}
         </div>
       </div>
       {!isMobile && (
         <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: "0 0 16px" }}>Haz clic en un espacio libre para crear una actividad. Arrastra un bloque para moverlo o estíralo desde el borde inferior.</p>
       )}
 
+      {isMobile && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 18, overflowX: "auto" }}>
+          {[["hoy", "Hoy"], ["resumen", "Resumen"], ["semana", "Semana"]].map(([k, l]) => (
+            <button key={k} onClick={() => setMobileSection(k)} style={{
+              ...fontBody, padding: "9px 18px", borderRadius: 999, whiteSpace: "nowrap", flexShrink: 0,
+              border: `1px solid ${mobileSection === k ? COLORS.teal : COLORS.border}`,
+              background: mobileSection === k ? COLORS.teal + "1c" : COLORS.elevated,
+              color: mobileSection === k ? COLORS.teal : COLORS.muted, fontWeight: 700, fontSize: 13.5, cursor: "pointer",
+            }}>{l}</button>
+          ))}
+        </div>
+      )}
+
       {viewMode === "dia" && (
         <>
-          {isMobile && (
+          {isMobile && mobileSection === "hoy" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
               {[...dayActs].sort((x, y) => x.start - y.start).map(a => {
                 const typeMeta = BLOCK_TYPES[a.type] || BLOCK_TYPES.operativo;
@@ -1991,7 +2017,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
             </div>
           )}
 
-          {selectedDate === todayISO && (
+          {showHoySection && selectedDate === todayISO && (
             <SoftCard style={{ padding: 18, marginBottom: 16 }}>
               <p style={{ ...fontDisplay, color: COLORS.paper, fontSize: 15, fontWeight: 700, margin: "0 0 3px" }}>Planea tu día</p>
               {!hasPending ? (
@@ -2030,6 +2056,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
             </SoftCard>
           )}
 
+          {showResumenSection && (
           <SoftCard style={{ padding: 18, marginBottom: 16 }}>
             <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: "0 0 10px" }}>Composición del día</p>
             <div style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", background: COLORS.elevated, marginBottom: 12 }}>
@@ -2053,6 +2080,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
               </div>
             </div>
           </SoftCard>
+          )}
 
           {!isMobile && (
             <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "16px 16px 22px 0", display: "flex" }}>
@@ -2070,7 +2098,8 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
             </div>
           )}
 
-          <div style={{ marginTop: 20, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 22 }}>
+          {showResumenSection && (
+          <div style={{ marginTop: isMobile ? 0 : 20, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 22 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14, marginBottom: 18 }}>
               <div>
                 <h2 style={{ ...fontDisplay, color: COLORS.paper, fontSize: 18, fontWeight: 700, margin: 0 }}>Cierre del día</h2>
@@ -2127,10 +2156,53 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
             <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: "0 0 8px" }}>Notas del día</p>
             <textarea value={journal.notes || ""} onChange={e => setJ("notes", e.target.value)} placeholder="Cualquier cosa que quieras recordar de hoy…" style={{ ...inputStyle(), minHeight: 70, resize: "vertical", marginBottom: 0 }} />
           </div>
+          )}
+
+          {showSemanaSection && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ ...fontMono, color: COLORS.muted, fontSize: 12.5, margin: "0 0 4px" }}>{weekLabel}</p>
+              {weekDays.map(ds => {
+                const d = parseISODate(ds);
+                const isToday = ds === todayISO;
+                const acts = [...actsFor(ds)].sort((x, y) => x.start - y.start);
+                const doneCt = acts.filter(a => isDone(a, ds)).length;
+                return (
+                  <SoftCard key={ds} style={{ padding: 16, border: `1px solid ${isToday ? COLORS.teal : COLORS.border}`, cursor: "pointer" }}>
+                    <div onClick={() => { setSelectedDate(ds); setMobileSection("hoy"); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: acts.length ? 10 : 0 }}>
+                      <div>
+                        <p style={{ ...fontDisplay, color: isToday ? COLORS.teal : COLORS.paper, fontSize: 15, fontWeight: 700, margin: 0 }}>{ES_DAYS[d.getDay()]} {d.getDate()}</p>
+                        {acts.length > 0 && <p style={{ ...fontMono, color: COLORS.muted, fontSize: 11.5, margin: "2px 0 0" }}>{doneCt}/{acts.length} completadas</p>}
+                      </div>
+                      <ChevronRight size={16} color={COLORS.muted} />
+                    </div>
+                    {acts.length === 0 ? (
+                      <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: 0 }}>Sin actividades</p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {acts.slice(0, 4).map(a => {
+                          const tm = BLOCK_TYPES[a.type] || BLOCK_TYPES.operativo;
+                          const tone = a.type === "otra" && a.customColor ? a.customColor : tm.tone;
+                          const done = isDone(a, ds);
+                          return (
+                            <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: 3, background: tone, flexShrink: 0 }} />
+                              <span style={{ ...fontMono, color: COLORS.muted, fontSize: 11, flexShrink: 0 }}>{fmtTime(a.start)}</span>
+                              <span style={{ ...fontBody, color: done ? COLORS.muted : COLORS.paper, fontSize: 12.5, textDecoration: done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{a.title}</span>
+                            </div>
+                          );
+                        })}
+                        {acts.length > 4 && <span style={{ ...fontMono, color: COLORS.muted, fontSize: 11 }}>+{acts.length - 4} más</span>}
+                      </div>
+                    )}
+                  </SoftCard>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 
-      {viewMode === "semana" && (
+      {!isMobile && viewMode === "semana" && (
         <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "14px 14px 22px 0", overflowX: "auto" }}>
           <div style={{ minWidth: 706 }}>
           <div style={{ display: "flex", marginBottom: 6 }}>
