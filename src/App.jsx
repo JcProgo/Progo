@@ -410,7 +410,7 @@ function Resumen({ expenses, tasks, habits, products }) {
    GASTOS
 --------------------------------------------------------- */
 
-function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, customCategories, addCustomCategory, deleteCustomCategory, insertExpenseRow, patchExpenseRow, deleteExpenseRow }) {
+function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, customCategories, addCustomCategory, deleteCustomCategory, hiddenCategories, hideDefaultCategory, unhideDefaultCategory, insertExpenseRow, patchExpenseRow, deleteExpenseRow }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [editingIncome, setEditingIncome] = useState(false);
   const [incomeInput, setIncomeInput] = useState("");
@@ -420,8 +420,10 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
   const [catError, setCatError] = useState("");
   const [savingCategory, setSavingCategory] = useState(false);
   const [confirmDeleteCatId, setConfirmDeleteCatId] = useState(null);
+  const [showHidden, setShowHidden] = useState(false);
 
-  const catList = [...CAT_LIST, ...customCategories.map(c => c.name)];
+  const catList = [...CAT_LIST, ...customCategories.map(c => c.name)].filter(c => !hiddenCategories.includes(c));
+  const hiddenDefaults = CAT_LIST.filter(c => hiddenCategories.includes(c));
 
   async function addCategory() {
     const name = catForm.name.trim();
@@ -532,18 +534,18 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
                   <Icon size={15} color={meta.color} />
                 </div>
                 <span style={{ ...fontBody, fontSize: 13, color: COLORS.paper, fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat}</span>
-                {customCat ? (
-                  <button onClick={e => { e.stopPropagation(); setConfirmDeleteCatId(cat); }} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, padding: 2, display: "flex", flexShrink: 0 }}>
-                    <Trash2 size={13} />
-                  </button>
-                ) : (
-                  <ChevronRight size={14} color={COLORS.muted} />
-                )}
+                <button onClick={e => { e.stopPropagation(); setConfirmDeleteCatId(cat); }} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, padding: 2, display: "flex", flexShrink: 0 }}>
+                  <Trash2 size={13} />
+                </button>
               </div>
               {confirming ? (
-                <div onClick={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ ...fontBody, fontSize: 12, color: COLORS.muted }}>¿Eliminar categoría?</span>
-                  <button onClick={() => { deleteCustomCategory(customCat.id); setConfirmDeleteCatId(null); if (selectedCategory === cat) setSelectedCategory(null); }} style={{ ...fontBody, fontSize: 12, fontWeight: 600, color: COLORS.coral, background: "none", border: "none", cursor: "pointer" }}>Sí</button>
+                <div onClick={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ ...fontBody, fontSize: 12, color: COLORS.muted }}>{customCat ? "¿Eliminar categoría?" : "¿Ocultar categoría?"}</span>
+                  <button onClick={() => {
+                    if (customCat) deleteCustomCategory(customCat.id); else hideDefaultCategory(cat);
+                    setConfirmDeleteCatId(null);
+                    if (selectedCategory === cat) setSelectedCategory(null);
+                  }} style={{ ...fontBody, fontSize: 12, fontWeight: 600, color: COLORS.coral, background: "none", border: "none", cursor: "pointer" }}>Sí</button>
                   <button onClick={() => setConfirmDeleteCatId(null)} style={{ ...fontBody, fontSize: 12, color: COLORS.muted, background: "none", border: "none", cursor: "pointer" }}>No</button>
                 </div>
               ) : (
@@ -563,6 +565,29 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
           <span style={{ ...fontBody, fontSize: 13, color: COLORS.muted, fontWeight: 500 }}>Nueva categoría</span>
         </div>
       </div>
+
+      {hiddenDefaults.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <button onClick={() => setShowHidden(s => !s)} style={{ ...fontBody, background: "none", border: "none", color: COLORS.muted, cursor: "pointer", fontSize: 12.5, padding: 0, display: "flex", alignItems: "center", gap: 4 }}>
+            {showHidden ? "Ocultar" : "Mostrar"} categorías ocultas ({hiddenDefaults.length})
+          </button>
+          {showHidden && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+              {hiddenDefaults.map(cat => {
+                const meta = getCategoryMeta(cat, customCategories);
+                const Icon = meta.icon;
+                return (
+                  <div key={cat} style={{ display: "flex", alignItems: "center", gap: 8, background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "7px 10px" }}>
+                    <Icon size={13} color={meta.color} />
+                    <span style={{ ...fontBody, fontSize: 12.5, color: COLORS.muted }}>{cat}</span>
+                    <button onClick={() => unhideDefaultCategory(cat)} style={{ ...fontBody, background: "none", border: "none", color: COLORS.teal, fontWeight: 600, fontSize: 12, cursor: "pointer", padding: 0 }}>Restaurar</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {addingCategory && (
         <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, marginBottom: 24 }}>
@@ -3194,6 +3219,19 @@ export default function App() {
     return { data };
   }
 
+  // Categorías fijas (Servicios, Transporte, etc.) no son filas en la base — "eliminarlas" en
+  // realidad las oculta guardando el nombre en profiles.hidden_categories, para que no vuelvan a aparecer.
+  async function hideDefaultCategory(name) {
+    const next = Array.from(new Set([...(profile.hidden_categories || []), name]));
+    const { data, error } = await supabase.from("profiles").update({ hidden_categories: next }).eq("id", session.user.id).select().single();
+    if (!error) setProfile(data);
+  }
+  async function unhideDefaultCategory(name) {
+    const next = (profile.hidden_categories || []).filter(c => c !== name);
+    const { data, error } = await supabase.from("profiles").update({ hidden_categories: next }).eq("id", session.user.id).select().single();
+    if (!error) setProfile(data);
+  }
+
   // --- Categorías de gasto personalizadas (tabla `custom_categories`) ---
   async function addCustomCategory(name, color) {
     const { data, error } = await supabase.from("custom_categories").insert({ user_id: session.user.id, name, color }).select().single();
@@ -3497,7 +3535,7 @@ export default function App() {
           </div>
         )}
         {view === "resumen" && <Resumen expenses={expenses} tasks={tasks} habits={habits} products={products} />}
-        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} addCustomCategory={addCustomCategory} deleteCustomCategory={deleteCustomCategory} insertExpenseRow={insertExpenseRow} patchExpenseRow={patchExpenseRow} deleteExpenseRow={deleteExpenseRow} />}
+        {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} addCustomCategory={addCustomCategory} deleteCustomCategory={deleteCustomCategory} hiddenCategories={profile.hidden_categories || []} hideDefaultCategory={hideDefaultCategory} unhideDefaultCategory={unhideDefaultCategory} insertExpenseRow={insertExpenseRow} patchExpenseRow={patchExpenseRow} deleteExpenseRow={deleteExpenseRow} />}
         {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} egresos={egresos} addEgreso={addEgreso} editEgreso={editEgreso} deleteEgreso={deleteEgreso} financeLoading={financeLoading} />}
         {view === "metas" && <Metas goals={goals} setGoals={setGoals} incomes={incomes} insertGoalRow={insertGoalRow} patchGoalRow={patchGoalRow} deleteGoalRow={deleteGoalRow} financeLoading={financeLoading} />}
         {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} patchGoalRow={patchGoalRow} patchTaskRow={patchTaskRow} patchHabitRow={patchHabitRow} insertActivityRow={insertActivityRow} patchActivityRow={patchActivityRow} deleteActivityRow={deleteActivityRow} toggleCompletionRow={toggleCompletionRow} patchJournalRow={patchJournalRow} />}

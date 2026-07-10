@@ -2,8 +2,8 @@
 -- Corre este archivo completo en Supabase: Project -> SQL Editor -> New query -> pega y "Run".
 -- Es idempotente: usa "if not exists" / "add column if not exists" en todo,
 -- así que es seguro volver a correrlo en una base que ya tiene parte del esquema
--- (por ejemplo, para agregar solo la tabla `notes`, que es lo único nuevo
--- si ya corriste una versión anterior de este archivo).
+-- (por ejemplo, para agregar solo la columna `profiles.hidden_categories`,
+-- que es lo único nuevo si ya corriste una versión anterior de este archivo).
 --
 -- Este archivo reemplaza el historial de migraciones incrementales
 -- (profiles.sql, incomes_and_goals.sql, monthly_income.sql, custom_categories.sql,
@@ -23,6 +23,7 @@ create table if not exists profiles (
 
 alter table profiles add column if not exists monthly_income numeric;
 alter table profiles add column if not exists account_size numeric not null default 10000;
+alter table profiles add column if not exists hidden_categories jsonb not null default '[]'::jsonb;
 
 alter table profiles enable row level security;
 
