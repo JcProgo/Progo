@@ -127,23 +127,24 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
-// 100dvh no es confiable dentro de una PWA instalada en iOS (el alto real
-// termina desfasado del que reporta el navegador), así que medimos el alto
-// visible directamente por JS en vez de depender de la unidad CSS.
+// 100dvh no es confiable dentro de una PWA instalada en iOS, así que medimos
+// el alto visible por JS en vez de depender de la unidad CSS. A propósito
+// usamos SOLO window.innerHeight (el "layout viewport"), nunca
+// visualViewport.height: ese último se encoge cuando aparece el teclado
+// (así reporta el teclado iOS), y si el layout entero reacciona a eso, la
+// barra inferior "sube" empujada por el teclado en vez de quedarse fija.
 function useViewportHeight() {
   const [height, setHeight] = useState(() =>
-    typeof window !== "undefined" ? (window.visualViewport?.height || window.innerHeight) : 0
+    typeof window !== "undefined" ? window.innerHeight : 0
   );
   useEffect(() => {
-    function update() { setHeight(window.visualViewport?.height || window.innerHeight); }
+    function update() { setHeight(window.innerHeight); }
     update();
     window.addEventListener("resize", update);
     window.addEventListener("orientationchange", update);
-    window.visualViewport?.addEventListener("resize", update);
     return () => {
       window.removeEventListener("resize", update);
       window.removeEventListener("orientationchange", update);
-      window.visualViewport?.removeEventListener("resize", update);
     };
   }, []);
   return height;
