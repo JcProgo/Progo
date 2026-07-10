@@ -114,10 +114,12 @@ Dashboard general: gastos del mes, tareas completadas hoy, productos ganadores, 
 - **Meta financiera** (nuevo tipo): en vez de progreso manual, se calcula en vivo con `computeFinancialProgress(incomes, goal)` = `min(100, suma_ingresos_desde(financial_start_date) / financial_target * 100)`. Es la única fuente de verdad — nunca se guarda un `%` duplicado.
 
 ### Rutina
-- Timeline por horas (día/semana), bloques con tipo (`enfoque`/`operativo`/`descanso`/`movimiento`/`otra` con color custom vía `<input type=color>`), drag para mover/redimensionar, repetición (diario/semanal).
-- Panel "Planea tu día": arrastra tareas/hábitos/metas pendientes al timeline (crea actividad con `source: {kind, id}` vinculada — completarla en Rutina completa el original y viceversa).
+- **Escritorio:** timeline por horas (día/semana), bloques con tipo (`enfoque`/`operativo`/`descanso`/`movimiento`/`otra` con color custom vía `<input type=color>`), drag para mover/redimensionar, repetición (diario/semanal). Sin cambios — el usuario no reportó problemas con el drag en mouse.
+- **Móvil (rediseñado):** la vista "día" reemplaza el timeline de arrastre por una **agenda vertical de tarjetas** (mismos primitivos que Hábitos: `IconBadge` + título + rango horario + `CheckCircle`), ordenadas por hora de inicio. Tocar una tarjeta abre el modal de edición existente (sin cambios ahí). Cero arrastre en móvil. La pestaña "Semana" se oculta en móvil (`viewMode` se resetea a `"dia"` vía `useEffect` cuando `isMobile` pasa a `true`) — la grilla de 7 columnas no cabe bien en una pantalla de teléfono.
+- Panel "Planea tu día": **ya no se arrastra** (se quitó `startPanelDrag`/`ghost` por completo) — tocar un pendiente llama a `scheduleNow()`, que busca el próximo espacio libre de hoy y crea la actividad ahí directo (`source: {kind, id}` vinculada — completarla en Rutina completa el original y viceversa). Aplica tanto en móvil como escritorio.
 - Cierre del día: journal (rating, qué salió bien, qué mejorar, feeling emoji, notas) + % de cumplimiento del día.
 - Composición del día: barra de tiempo por tipo de bloque.
+- **Sin verificar con clic real** — se hizo por revisión de código + build/lint limpios, no había sesión activa en el navegador de preview en ese momento (a diferencia del rediseño de Hábitos, que sí se probó de punta a punta).
 
 ### Trading
 - Calendario mensual estilo TradeZella (verde/rojo por día), navegación de mes.
