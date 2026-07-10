@@ -6,8 +6,12 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0E1318" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Modo standalone lo declara el manifest (display: standalone). NO agregar
+         apple-mobile-web-app-capable ni apple-mobile-web-app-status-bar-style:
+         black-translucent aquí — en iOS 18 esa combinación produce una ventana
+         62pt más corta que la pantalla física (verificado con medidas en vivo:
+         screen.height 874 vs window.innerHeight 812 en iPhone 16 Pro), dejando
+         una franja muerta bajo la barra de navegación que ningún CSS puede pintar. -->
     <meta name="apple-mobile-web-app-title" content="PROGO" />
     <title>PROGO</title>
   </head>
