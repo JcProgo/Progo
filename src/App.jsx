@@ -391,11 +391,12 @@ function Resumen({ expenses, tasks, habits, products }) {
                 <recharts.XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={{ stroke: COLORS.border }} tickLine={false} />
                 <recharts.YAxis tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} width={70} tickFormatter={v => fmtCOP(v)} />
                 <recharts.Tooltip
+                  cursor={false}
                   contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: "'Inter', sans-serif", fontSize: 13 }}
                   formatter={v => fmtCOP(v)}
                   labelStyle={{ color: COLORS.muted }}
                 />
-                <recharts.Bar dataKey="amount" fill={COLORS.gold} radius={[4, 4, 0, 0]} />
+                <recharts.Bar dataKey="amount" fill={COLORS.gold} radius={[4, 4, 0, 0]} activeBar={{ fill: COLORS.gold }} />
               </recharts.BarChart>
             </recharts.ResponsiveContainer>
           )}
@@ -1444,12 +1445,13 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
                     <recharts.XAxis dataKey="day" tick={{ fill: COLORS.muted, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} axisLine={{ stroke: COLORS.border }} tickLine={false} interval={2} />
                     <recharts.YAxis domain={[0, 100]} tick={{ fill: COLORS.muted, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} width={32} />
                     <recharts.Tooltip
+                      cursor={false}
                       contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: "'Inter', sans-serif", fontSize: 12 }}
                       formatter={v => `${v}%`}
                       labelFormatter={l => `Día ${l}`}
                       labelStyle={{ color: COLORS.muted }}
                     />
-                    <recharts.Bar dataKey="pct" fill={COLORS.teal} radius={[3, 3, 0, 0]} />
+                    <recharts.Bar dataKey="pct" fill={COLORS.teal} radius={[3, 3, 0, 0]} activeBar={{ fill: COLORS.teal }} />
                   </recharts.BarChart>
                 </recharts.ResponsiveContainer>
               )}
