@@ -8,7 +8,7 @@
 
 Plataforma de gestión de negocio/productividad personal ("Organiza. Ejecuta. Progresa.") por **JC CREW**. Multi-usuario, con cuentas reales (correo/contraseña) y aislamiento total de datos por usuario.
 
-Secciones: Resumen, Gastos, Ingresos y saldos, Metas, Rutina, Trading, Tareas diarias, Hábitos, Productos testeados, y Usuarios (solo admin).
+Secciones: Resumen, Gastos, Ingresos y saldos, Metas, Rutina, Trading, Tareas diarias, Hábitos, Productos testeados, Notas, y Usuarios (solo admin).
 
 ---
 
@@ -136,6 +136,9 @@ Dashboard general: gastos del mes, tareas completadas hoy, productos ganadores, 
 ### Tareas / Hábitos / Productos testeados
 CRUD completo y persistido (agregar/editar/eliminar), siguiendo el mismo patrón. Hábitos tiene selector de color (4 tonos fijos) + calendario de cumplimiento mensual + rachas.
 
+### Notas (nueva)
+Tabla `notes` (title, content, tone_key, pinned, updated_at). Grilla de tarjetas de color (estilo Apple Notes/Google Keep, 2 columnas en móvil) — tocar una abre un modal de edición (título + contenido + selector de 4 colores, mismo patrón que Hábitos). Pin para fijar arriba. Hora relativa ("hace 5 min", "hace 2 h", etc.) en cada tarjeta. **Pendiente:** el usuario debe correr `supabase/schema.sql` de nuevo (idempotente, solo crea `notes`) — la tabla no existe todavía en la base real. **No verificado con clic real** — ver §9.
+
 ### Usuarios (solo admin)
 Lista de perfiles, activar/desactivar cuentas.
 
@@ -188,6 +191,7 @@ No hay ninguna otra variable de entorno ni secreto en el proyecto. El token pers
 2. **Ningún flujo fue probado end-to-end por el asistente con login real** — ni la persistencia previa (~8 tablas) ni el nuevo módulo de Egresos, code-splitting de Recharts, PWA, o navegación inferior pasaron por un click real de "usar la app" hecho por el asistente (política de seguridad: nunca se entran contraseñas). En esta sesión sí se pudo verificar bastante en vivo porque el navegador de preview tenía una sesión de Supabase ya activa (no iniciada por el asistente) — eso permitió confirmar en DOM real cosas como el contenedor único de scroll, el fondo sincronizado con el tema, y el `font-size` de los inputs. Lo que **no** se pudo probar así: el login/registro en sí (el checkbox "mantener sesión iniciada" nuevo, en particular, nunca fue ejercitado con una cuenta real), y nada del comportamiento específico de iOS Safari/PWA standalone (notch, `position:fixed`, `dvh`) — eso solo lo puede confirmar el usuario en su teléfono.
 3. **`git config` de commits usa nombre/email autodetectados** (`juanchaverra@MacBook-Air-de-Juan.local`) en vez de un nombre real configurado — cosmético, no rompe nada.
 4. **Bundle inicial sigue por encima de 500KB** (bajó de ~870KB a ~521KB tras sacar Recharts a un chunk separado cargado bajo demanda; el chunk de Recharts en sí también supera 500KB, así que Vite sigue avisando en el build). No es un bug — solo queda como posible optimización futura si el proyecto sigue creciendo (ej. tree-shaking más agresivo de `lucide-react`, o extraer más secciones a módulos separados).
+5. **SIN CONFIRMAR — posible re-render/refetch en loop.** Verificando Notas en el navegador de preview, se observó que el DOM se re-renderiza tan seguido que hasta las referencias a la barra de navegación (sin relación con Notas) quedaban obsoletas en milisegundos, y en un momento la app completa volvió a mostrar "Cargando tu perfil…" espontáneamente. Causa probable: el efecto de carga de perfil depende de `[session]` (`App.jsx`, ~línea 2877), y `onAuthStateChange` puede reemitir `session` (p. ej. en cada refresco de token) con un objeto nuevo aunque los datos no cambien — eso reencadena el `useEffect` de `[profile]` que hace el `Promise.all` completo de nuevo (goals, incomes, tasks, notes, etc.), y si además `profileLoading` se pone en `true` un instante, toda la app se desmonta y remonta. **No se pudo confirmar si esto pasa en uso normal real** (podría ser un artefacto de cómo la herramienta de automatización del navegador dispara eventos de foco/visibilidad, a los que el cliente de Supabase reacciona) — el usuario nunca reportó pantallas parpadeando o "Cargando tu perfil" apareciendo sola en su celular. Si en algún momento se nota la app recargándose sola o perdiendo texto que se estaba escribiendo, investigar este efecto primero.
 
 ---
 
