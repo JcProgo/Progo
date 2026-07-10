@@ -5,7 +5,7 @@ import {
   Plus, Trash2, ChevronRight, TrendingUp, TrendingDown, Coffee,
   UtensilsCrossed, ShoppingCart, Car, Home as HomeIcon, Zap,
   HeartPulse, ShoppingBag, Trash, GraduationCap, MoreHorizontal, Check,
-  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, LogOut, Users, ShieldCheck, Pencil, PiggyBank, Tag, StickyNote, Pin
+  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, LogOut, Users, ShieldCheck, Pencil, PiggyBank, Tag, StickyNote, Pin, ChevronLeft
 } from "lucide-react";
 
 // recharts (~200KB+ del bundle) se carga de forma perezosa vía import() dinámico
@@ -1578,57 +1578,90 @@ function Productos({ products, setProducts, insertProductRow, patchProductRow, d
 
 const NOTE_TONE_KEYS = ["gold", "teal", "coral", "violet"];
 
+function fmtNoteDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const datePart = d.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+  const timePart = d.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+  return `${datePart} · ${timePart}`;
+}
+
+// Circular button estilo Apple Notes (fondo elevado, ícono centrado) para la barra del editor de pantalla completa.
+function RoundIconButton({ icon: Icon, onClick, color, filled = false, size = 36 }) {
+  return (
+    <button onClick={onClick} style={{
+      width: size, height: size, borderRadius: "50%", flexShrink: 0, cursor: "pointer",
+      border: `1px solid ${COLORS.border}`, background: COLORS.elevated,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+    }}>
+      <Icon size={17} color={color || COLORS.paper} strokeWidth={2.2} fill={filled ? (color || COLORS.paper) : "none"} />
+    </button>
+  );
+}
+
+function autoGrow(el) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
 function Notas({ notes, setNotes, insertNoteRow, patchNoteRow, deleteNoteRow }) {
-  const [editor, setEditor] = useState(null); // { mode, id?, title, content, toneKey }
-  const [saving, setSaving] = useState(false);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const isMobile = useIsMobile();
+  const [editor, setEditor] = useState(null); // { mode, id?, title, content, toneKey, createdAt? }
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const saveTimer = useRef(null);
 
-  function openNew() { setEditor({ mode: "new", title: "", content: "", toneKey: "gold" }); }
-  function openEdit(n) { setEditor({ mode: "edit", id: n.id, title: n.title, content: n.content, toneKey: n.toneKey }); }
-  function closeEditor() { setEditor(null); }
+  function openNew() { setConfirmDelete(false); setEditor({ mode: "new", title: "", content: "", toneKey: "gold", createdAt: new Date().toISOString() }); }
+  function openEdit(n) { setConfirmDelete(false); setEditor({ mode: "edit", id: n.id, title: n.title, content: n.content, toneKey: n.toneKey, createdAt: n.createdAt }); }
 
-  async function save() {
-    if (!editor.title.trim() && !editor.content.trim()) { closeEditor(); return; }
-    setSaving(true);
-    const payload = { title: editor.title.trim() || "Sin título", content: editor.content, toneKey: editor.toneKey };
-    if (editor.mode === "new") {
+  async function doSave(e) {
+    if (!e) return;
+    if (!e.title.trim() && !e.content.trim()) return;
+    const payload = { title: e.title.trim() || "Sin título", content: e.content, toneKey: e.toneKey };
+    if (e.mode === "new") {
       const created = await insertNoteRow(payload);
-      if (created) setNotes(prev => [created, ...prev]);
+      if (created) {
+        setNotes(prev => [created, ...prev]);
+        setEditor(prev => (prev && prev.mode === "new") ? { ...prev, mode: "edit", id: created.id, createdAt: created.createdAt } : prev);
+      }
     } else {
-      const updatedAt = await patchNoteRow(editor.id, payload);
-      setNotes(prev => prev.map(n => n.id === editor.id ? { ...n, ...payload, updatedAt: updatedAt || n.updatedAt } : n)
+      const updatedAt = await patchNoteRow(e.id, payload);
+      setNotes(prev => prev.map(n => n.id === e.id ? { ...n, ...payload, updatedAt: updatedAt || n.updatedAt } : n)
         .sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt))));
     }
-    setSaving(false);
-    closeEditor();
   }
 
-  async function togglePinned(n) {
+  function updateEditor(patch) {
+    setEditor(prev => {
+      const next = { ...prev, ...patch };
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => doSave(next), 600);
+      return next;
+    });
+  }
+
+  function closeEditor() {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+    doSave(editor);
+    setEditor(null);
+    setConfirmDelete(false);
+  }
+
+  async function togglePinned(n, e) {
+    e?.stopPropagation();
     setNotes(prev => prev.map(x => x.id === n.id ? { ...x, pinned: !x.pinned } : x)
       .sort((a, b) => (b.pinned - a.pinned) || (new Date(b.updatedAt) - new Date(a.updatedAt))));
     await patchNoteRow(n.id, { pinned: !n.pinned });
   }
 
   async function remove(id) {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
     setNotes(prev => prev.filter(n => n.id !== id));
     deleteNoteRow(id);
-    setConfirmDeleteId(null);
-    if (editor?.id === id) closeEditor();
+    setConfirmDelete(false);
+    setEditor(null);
   }
 
-  function relTime(iso) {
-    if (!iso) return "";
-    const diffMs = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diffMs / 60000);
-    if (mins < 1) return "ahora";
-    if (mins < 60) return `hace ${mins} min`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `hace ${hrs} h`;
-    const days = Math.floor(hrs / 24);
-    if (days < 30) return `hace ${days} d`;
-    return new Date(iso).toLocaleDateString("es-CO");
-  }
+  const editorTone = editor ? COLORS[editor.toneKey] || COLORS.gold : COLORS.gold;
 
   return (
     <div>
@@ -1641,65 +1674,92 @@ function Notas({ notes, setNotes, insertNoteRow, patchNoteRow, deleteNoteRow }) 
           <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, margin: 0, textAlign: "center" }}>No hay notas todavía. Crea la primera arriba.</p>
         </SoftCard>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {notes.map(n => {
             const tone = COLORS[n.toneKey] || COLORS.gold;
             return (
-              <div key={n.id} onClick={() => openEdit(n)} style={{
-                background: COLORS.card, border: `1px solid ${COLORS.border}`, borderTop: `3px solid ${tone}`,
-                borderRadius: 14, padding: 14, cursor: "pointer", display: "flex", flexDirection: "column",
-                minHeight: 120, position: "relative",
-              }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, marginBottom: 6 }}>
-                  <p style={{ ...fontDisplay, color: COLORS.paper, fontSize: 14, fontWeight: 700, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{n.title}</p>
-                  <button onClick={e => { e.stopPropagation(); togglePinned(n); }} style={{
-                    background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0,
+              <SoftCard key={n.id} style={{ padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div onClick={() => openEdit(n)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, cursor: "pointer" }}>
+                    <IconBadge icon={StickyNote} color={tone} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14.5, fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title}</p>
+                      <p style={{ ...fontMono, color: COLORS.muted, fontSize: 12, margin: "3px 0 0" }}>{fmtNoteDate(n.createdAt)}</p>
+                    </div>
+                  </div>
+                  <button onClick={e => togglePinned(n, e)} style={{
+                    background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0,
                     color: n.pinned ? tone : COLORS.muted, display: "flex",
-                  }}><Pin size={14} fill={n.pinned ? tone : "none"} /></button>
+                  }}><Pin size={16} fill={n.pinned ? tone : "none"} /></button>
                 </div>
-                <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: 0, flex: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical", whiteSpace: "pre-wrap" }}>{n.content}</p>
-                <p style={{ ...fontMono, color: COLORS.muted, fontSize: 10.5, margin: "8px 0 0" }}>{relTime(n.updatedAt)}</p>
-              </div>
+              </SoftCard>
             );
           })}
         </div>
       )}
 
       {editor && (
-        <div onClick={closeEditor} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(8,10,14,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 24, width: "100%", maxWidth: 460, maxHeight: "88vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <p style={{ ...fontDisplay, color: COLORS.paper, fontSize: 17, fontWeight: 700, margin: 0 }}>{editor.mode === "new" ? "Nueva nota" : "Editar nota"}</p>
-              <div style={{ display: "flex", gap: 6 }}>
-                {NOTE_TONE_KEYS.map(k => (
-                  <div key={k} onClick={() => setEditor({ ...editor, toneKey: k })} style={{
-                    width: 22, height: 22, borderRadius: 7, cursor: "pointer", background: COLORS[k],
-                    outline: editor.toneKey === k ? `2px solid ${COLORS.paper}` : "none", outlineOffset: 2,
-                  }} />
-                ))}
-              </div>
-            </div>
-            <input value={editor.title} onChange={e => setEditor({ ...editor, title: e.target.value })} placeholder="Título" style={{ ...inputStyle(), fontWeight: 700, fontSize: 16 }} autoFocus />
-            <textarea value={editor.content} onChange={e => setEditor({ ...editor, content: e.target.value })} placeholder="Escribe aquí…" style={{ ...inputStyle(), minHeight: 180, resize: "vertical" }} />
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 70, background: COLORS.ink,
+          display: "flex", flexDirection: "column",
+        }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "max(14px, env(safe-area-inset-top)) 16px 10px",
+          }}>
+            <RoundIconButton icon={ChevronLeft} onClick={closeEditor} />
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <PrimaryButton onClick={save} accent={COLORS.gold}>{saving ? "Guardando…" : <><Check size={16} /> Guardar</>}</PrimaryButton>
-              {editor.mode === "edit" && (
-                confirmDeleteId === editor.id ? (
-                  <>
-                    <span style={{ ...fontBody, fontSize: 12.5, color: COLORS.muted }}>¿Eliminar?</span>
-                    <button onClick={() => remove(editor.id)} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.coral, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>Sí</button>
-                    <button onClick={() => setConfirmDeleteId(null)} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>No</button>
-                  </>
-                ) : (
-                  <button onClick={() => setConfirmDeleteId(editor.id)} style={{
-                    ...fontBody, display: "flex", alignItems: "center", gap: 6, background: "transparent",
-                    border: `1px solid ${COLORS.coral}`, color: COLORS.coral, fontWeight: 600, fontSize: 14,
-                    borderRadius: 10, padding: "10px 16px", cursor: "pointer",
-                  }}><Trash2 size={15} /> Eliminar</button>
-                )
+              {confirmDelete ? (
+                <>
+                  <span style={{ ...fontBody, fontSize: 12.5, color: COLORS.muted }}>¿Eliminar nota?</span>
+                  <button onClick={() => remove(editor.id)} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.coral, fontWeight: 700, fontSize: 13.5, cursor: "pointer", padding: "6px 4px" }}>Sí</button>
+                  <button onClick={() => setConfirmDelete(false)} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer", padding: "6px 4px" }}>No</button>
+                </>
+              ) : (
+                <>
+                  {NOTE_TONE_KEYS.map(k => (
+                    <div key={k} onClick={() => updateEditor({ toneKey: k })} style={{
+                      width: 18, height: 18, borderRadius: 6, cursor: "pointer", background: COLORS[k],
+                      outline: editor.toneKey === k ? `2px solid ${COLORS.paper}` : "none", outlineOffset: 2,
+                    }} />
+                  ))}
+                  {editor.mode === "edit" && (() => {
+                    const isPinned = !!notes.find(n => n.id === editor.id)?.pinned;
+                    return <RoundIconButton icon={Pin} onClick={() => togglePinned({ id: editor.id, pinned: isPinned }, null)} color={isPinned ? editorTone : COLORS.paper} filled={isPinned} />;
+                  })()}
+                  {editor.mode === "edit" && <RoundIconButton icon={Trash2} onClick={() => setConfirmDelete(true)} color={COLORS.coral} />}
+                </>
               )}
-              <button onClick={closeEditor} style={{ ...fontBody, marginLeft: "auto", background: "transparent", border: "none", color: COLORS.muted, fontSize: 14, cursor: "pointer" }}>Cancelar</button>
             </div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: "auto", padding: "4px 22px max(24px, env(safe-area-inset-bottom))" }}>
+            <textarea
+              ref={autoGrow}
+              value={editor.title}
+              onChange={e => { updateEditor({ title: e.target.value }); autoGrow(e.target); }}
+              placeholder="Título"
+              rows={1}
+              autoFocus={editor.mode === "new"}
+              style={{
+                ...fontDisplay, display: "block", width: "100%", color: COLORS.paper, fontSize: 26, fontWeight: 800,
+                border: "none", outline: "none", background: "transparent", resize: "none", overflow: "hidden",
+                padding: 0, margin: 0, lineHeight: 1.25,
+              }}
+            />
+            <p style={{ ...fontMono, color: COLORS.muted, fontSize: 12.5, margin: "6px 0 18px" }}>{fmtNoteDate(editor.createdAt)}</p>
+            <textarea
+              ref={autoGrow}
+              value={editor.content}
+              onChange={e => { updateEditor({ content: e.target.value }); autoGrow(e.target); }}
+              placeholder="Escribe aquí…"
+              rows={3}
+              style={{
+                ...fontBody, display: "block", width: "100%", color: COLORS.paper, fontSize: 15.5, fontWeight: 400,
+                border: "none", outline: "none", background: "transparent", resize: "none", overflow: "hidden",
+                padding: 0, margin: 0, lineHeight: 1.6, minHeight: "40vh",
+              }}
+            />
           </div>
         </div>
       )}
@@ -2977,7 +3037,7 @@ export default function App() {
       else console.error("Error cargando hábitos:", habitsRes.error.message);
       if (!productsRes.error) setProducts((productsRes.data || []).map(r => ({ id: r.id, name: r.name, testDate: r.test_date, investment: Number(r.investment), sales: Number(r.sales), status: r.status, notes: r.notes })));
       else console.error("Error cargando productos:", productsRes.error.message);
-      if (!notesRes.error) setNotes((notesRes.data || []).map(r => ({ id: r.id, title: r.title, content: r.content, toneKey: r.tone_key, pinned: r.pinned, updatedAt: r.updated_at })));
+      if (!notesRes.error) setNotes((notesRes.data || []).map(r => ({ id: r.id, title: r.title, content: r.content, toneKey: r.tone_key, pinned: r.pinned, createdAt: r.created_at, updatedAt: r.updated_at })));
       else console.error("Error cargando notas:", notesRes.error.message);
       if (!activitiesRes.error) setActivities((activitiesRes.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, start: r.start_min, end: r.end_min, type: r.type, category: r.category, customColor: r.custom_color, description: r.description, repeat: r.repeat, source: r.source })));
       else console.error("Error cargando actividades:", activitiesRes.error.message);
@@ -3204,7 +3264,7 @@ export default function App() {
       user_id: session.user.id, title: payload.title, content: payload.content, tone_key: payload.toneKey,
     }).select().single();
     if (error) { console.error("Error creando nota:", error.message); return null; }
-    return { id: data.id, title: data.title, content: data.content, toneKey: data.tone_key, pinned: data.pinned, updatedAt: data.updated_at };
+    return { id: data.id, title: data.title, content: data.content, toneKey: data.tone_key, pinned: data.pinned, createdAt: data.created_at, updatedAt: data.updated_at };
   }
   async function patchNoteRow(id, patch) {
     const dbPatch = { updated_at: new Date().toISOString() };
