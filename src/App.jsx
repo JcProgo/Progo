@@ -1647,16 +1647,20 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
   const [viewMode, setViewMode] = useState("dia");
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const [editor, setEditor] = useState(null);
-  const [ghost, setGhost] = useState(null);
   const [nowMin, setNowMin] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); });
   const movedRef = useRef(false);
   const dayTrackRef = useRef(null);
   const journalSaveTimer = useRef(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const t = setInterval(() => { const n = new Date(); setNowMin(n.getHours() * 60 + n.getMinutes()); }, 30000);
     return () => clearInterval(t);
   }, []);
+
+  // La vista Semana (grilla de 7 columnas con arrastre) no cabe cómoda en
+  // móvil — ahí solo se ofrece la agenda del día.
+  useEffect(() => { if (isMobile) setViewMode("dia"); }, [isMobile]);
 
   const dayStart = DAY_START_MIN, dayEnd = DAY_END_MIN;
   const timeOptions = useMemo(() => {
@@ -1721,6 +1725,29 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
     const rect = e.currentTarget.getBoundingClientRect();
     openNew(ds, dayStart + (e.clientY - rect.top) / px * 60);
   }
+  function openEdit(a) {
+    setEditor({ mode: "edit", id: a.id, date: a.date, title: a.title, start: a.start, end: a.end, category: a.category || "", type: a.type || "operativo", customColor: a.customColor || DEFAULT_CUSTOM_COLOR, description: a.description || "", repeat: a.repeat || "no", source: a.source || null });
+  }
+  // Agenda un pendiente (tarea/hábito/meta) con un toque: busca el próximo
+  // espacio libre de hoy en vez de requerir arrastrarlo — más simple en
+  // móvil, donde arrastrar con precisión es incómodo.
+  async function scheduleNow(item, kind) {
+    const dur = 45;
+    const sorted = [...actsFor(todayISO)].sort((a, b) => a.start - b.start);
+    let start = Math.max(dayStart, Math.min(dayEnd - dur, snapToGrid(nowMin)));
+    for (const a of sorted) {
+      if (a.end <= start) continue;
+      if (a.start >= start + dur) break;
+      start = Math.max(start, a.end);
+    }
+    start = Math.max(dayStart, Math.min(dayEnd - dur, start));
+    const data = {
+      date: todayISO, title: item.title, start, end: Math.min(dayEnd, start + dur),
+      type: SOURCE_META[kind].defaultType, category: "", description: "", repeat: "no", source: { kind, id: item.id },
+    };
+    const created = await insertActivityRow(data);
+    if (created) setActivities(prev => [...prev, created]);
+  }
   async function saveEditor() {
     if (!editor.title.trim() || editor.end <= editor.start) return;
     const data = { date: editor.date, title: editor.title.trim(), start: editor.start, end: editor.end, type: editor.type, customColor: editor.customColor, category: editor.category, description: editor.description, repeat: editor.repeat };
@@ -1732,30 +1759,6 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
       patchActivityRow(editor.id, data);
     }
     setEditor(null);
-  }
-
-  // Arrastrar una pendiente (Tarea/Hábito/Meta) desde el panel "Planea tu día" hasta el timeline
-  function startPanelDrag(e, item, kind) {
-    e.preventDefault();
-    const move = ev => setGhost({ x: ev.clientX, y: ev.clientY, label: item.title, tone: SOURCE_META[kind].tone });
-    const up = async ev => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      setGhost(null);
-      const rect = dayTrackRef.current?.getBoundingClientRect();
-      if (!rect || ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return;
-      const min = snapToGrid(dayStart + (ev.clientY - rect.top) / PX_HOUR_DAY * 60);
-      const start = Math.max(dayStart, Math.min(dayEnd - 45, min));
-      const data = {
-        date: todayISO, title: item.title, start, end: Math.min(dayEnd, start + 45),
-        type: SOURCE_META[kind].defaultType, category: "", description: "", repeat: "no", source: { kind, id: item.id },
-      };
-      const created = await insertActivityRow(data);
-      if (created) setActivities(prev => [...prev, created]);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    move(e);
   }
 
   // Drag para mover (vertical = hora, horizontal en semana = día) y resize desde el borde inferior
@@ -1815,7 +1818,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
         onClick={e => {
           e.stopPropagation();
           if (movedRef.current) return;
-          setEditor({ mode: "edit", id: a.id, date: a.date, title: a.title, start: a.start, end: a.end, category: a.category || "", type: a.type || "operativo", customColor: a.customColor || DEFAULT_CUSTOM_COLOR, description: a.description || "", repeat: a.repeat || "no", source: a.source || null });
+          openEdit(a);
         }}
         style={{
           position: "absolute", top, height, left: `calc(${lane * w}% + 3px)`, width: `calc(${w}% - 7px)`,
@@ -1908,15 +1911,19 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
     const Icon = meta.icon;
     const scheduled = isScheduledToday(kind, item.id);
     return (
-      <div onPointerDown={e => !scheduled && startPanelDrag(e, item, kind)} style={{
-        display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 9,
-        border: `1px solid ${COLORS.border}`, background: COLORS.elevated,
-        cursor: scheduled ? "default" : "grab", opacity: scheduled ? 0.5 : 1, userSelect: "none", touchAction: "none",
+      <button onClick={() => !scheduled && scheduleNow(item, kind)} disabled={scheduled} style={{
+        ...fontBody, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 9,
+        border: `1px solid ${COLORS.border}`, background: COLORS.elevated, width: "100%", textAlign: "left",
+        cursor: scheduled ? "default" : "pointer", opacity: scheduled ? 0.5 : 1,
       }}>
-        <Icon size={13} color={meta.tone} style={{ flexShrink: 0 }} />
-        <span style={{ ...fontBody, flex: 1, fontSize: 12.5, color: COLORS.paper, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</span>
-        {scheduled && <span style={{ ...fontMono, fontSize: 9.5, color: COLORS.teal, whiteSpace: "nowrap" }}>Programada</span>}
-      </div>
+        <IconBadge icon={Icon} color={meta.tone} size={26} />
+        <span style={{ flex: 1, fontSize: 12.5, color: COLORS.paper, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</span>
+        {scheduled ? (
+          <span style={{ ...fontMono, fontSize: 9.5, color: COLORS.teal, whiteSpace: "nowrap" }}>Programada</span>
+        ) : (
+          <span style={{ ...fontMono, fontSize: 9.5, color: COLORS.muted, whiteSpace: "nowrap" }}>Toca para agendar</span>
+        )}
+      </button>
     );
   }
 
@@ -1925,16 +1932,18 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
       <SectionHeader icon={Calendar} title="Rutina" subtitle="Tu día distribuido hora por hora" accent={COLORS.teal} />
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 6 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          {[["dia", "Día"], ["semana", "Semana"]].map(([k, l]) => (
-            <button key={k} onClick={() => setViewMode(k)} style={{
-              ...fontBody, fontSize: 13.5, fontWeight: 600, padding: "8px 16px", borderRadius: 9,
-              border: `1px solid ${viewMode === k ? COLORS.teal : COLORS.border}`,
-              background: viewMode === k ? COLORS.teal + "22" : "transparent",
-              color: viewMode === k ? COLORS.teal : COLORS.muted, cursor: "pointer",
-            }}>{l}</button>
-          ))}
-        </div>
+        {!isMobile && (
+          <div style={{ display: "flex", gap: 8 }}>
+            {[["dia", "Día"], ["semana", "Semana"]].map(([k, l]) => (
+              <button key={k} onClick={() => setViewMode(k)} style={{
+                ...fontBody, fontSize: 13.5, fontWeight: 600, padding: "8px 16px", borderRadius: 9,
+                border: `1px solid ${viewMode === k ? COLORS.teal : COLORS.border}`,
+                background: viewMode === k ? COLORS.teal + "22" : "transparent",
+                color: viewMode === k ? COLORS.teal : COLORS.muted, cursor: "pointer",
+              }}>{l}</button>
+            ))}
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button onClick={() => setSelectedDate(addDaysISO(selectedDate, viewMode === "dia" ? -1 : -7))} style={navBtnStyle}>
             <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} />
@@ -1946,42 +1955,50 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
           <span style={{ ...fontMono, color: COLORS.muted, fontSize: 12.5, marginLeft: 4 }}>{viewMode === "dia" ? dayLabel : weekLabel}</span>
         </div>
       </div>
-      <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: "0 0 16px" }}>Haz clic en un espacio libre para crear una actividad. Arrastra un bloque para moverlo o estíralo desde el borde inferior.</p>
+      {!isMobile && (
+        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: "0 0 16px" }}>Haz clic en un espacio libre para crear una actividad. Arrastra un bloque para moverlo o estíralo desde el borde inferior.</p>
+      )}
 
       {viewMode === "dia" && (
         <>
-          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, marginBottom: 16 }}>
-            <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: "0 0 10px" }}>Composición del día</p>
-            <div style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", background: COLORS.elevated, marginBottom: 12 }}>
-              {Object.entries(BLOCK_TYPES).map(([key, t]) => typeMinutes[key] > 0 && (
-                <div key={key} style={{ flex: `${typeMinutes[key]} 0 0%`, background: t.tone }} />
-              ))}
-              {freeMin > 0 && <div style={{ flex: `${freeMin} 0 0%` }} />}
-            </div>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-              {Object.entries(BLOCK_TYPES).map(([key, t]) => {
-                const Icon = t.icon;
+          {isMobile && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+              {[...dayActs].sort((x, y) => x.start - y.start).map(a => {
+                const typeMeta = BLOCK_TYPES[a.type] || BLOCK_TYPES.operativo;
+                const tone = a.type === "otra" && a.customColor ? a.customColor : typeMeta.tone;
+                const done = isDone(a, selectedDate);
                 return (
-                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <Icon size={12} color={t.tone} />
-                    <span style={{ ...fontMono, fontSize: 11.5, color: COLORS.muted }}>{t.label} · <span style={{ color: t.tone, fontWeight: 600 }}>{fmtDuration(typeMinutes[key])}</span></span>
-                  </div>
+                  <SoftCard key={a.id} style={{ padding: 14, opacity: done ? 0.65 : 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div onClick={() => openEdit(a)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, cursor: "pointer" }}>
+                        <IconBadge icon={typeMeta.icon} color={tone} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ ...fontBody, color: done ? COLORS.muted : COLORS.paper, fontSize: 14.5, fontWeight: 600, margin: 0, textDecoration: done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.title}</p>
+                          <p style={{ ...fontMono, color: tone, fontSize: 12, margin: "3px 0 0" }}>{fmtTime(a.start)} – {fmtTime(a.end)}</p>
+                        </div>
+                      </div>
+                      <CheckCircle done={done} color={tone} onClick={() => toggleActivityDone(a, selectedDate)} />
+                    </div>
+                  </SoftCard>
                 );
               })}
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ ...fontMono, fontSize: 11.5, color: COLORS.muted }}>Libre · <span style={{ color: COLORS.paper, fontWeight: 600 }}>{fmtDuration(freeMin)}</span></span>
-              </div>
+              {dayActs.length === 0 && (
+                <SoftCard style={{ padding: 22 }}>
+                  <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, margin: 0, textAlign: "center" }}>Nada programado todavía. Agrega tu primera actividad.</p>
+                </SoftCard>
+              )}
+              <PrimaryButton onClick={() => openNew(selectedDate, Math.max(dayStart, nowMin))} accent={COLORS.teal}><Plus size={16} /> Agregar actividad</PrimaryButton>
             </div>
-          </div>
+          )}
 
           {selectedDate === todayISO && (
-            <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, marginBottom: 16 }}>
+            <SoftCard style={{ padding: 18, marginBottom: 16 }}>
               <p style={{ ...fontDisplay, color: COLORS.paper, fontSize: 15, fontWeight: 700, margin: "0 0 3px" }}>Planea tu día</p>
               {!hasPending ? (
                 <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: 0 }}>Todo tu día está programado. ✓</p>
               ) : (
                 <>
-                  <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: "0 0 12px" }}>Arrastra un pendiente hacia el timeline para ubicarlo en tu horario.</p>
+                  <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: "0 0 12px" }}>Toca un pendiente para agendarlo automáticamente en el próximo espacio libre de hoy.</p>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
                     {pendingTasks.length > 0 && (
                       <div>
@@ -2010,22 +2027,48 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
                   </div>
                 </>
               )}
-            </div>
+            </SoftCard>
           )}
 
-          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "16px 16px 22px 0", display: "flex" }}>
-            <div style={{ width: 76, position: "relative", height: trackH(PX_HOUR_DAY), flexShrink: 0 }}>
-              {gutterLabels(PX_HOUR_DAY)}
-            </div>
-            <div ref={dayTrackRef} onClick={e => handleTrackClick(e, selectedDate, PX_HOUR_DAY)}
-              style={{ flex: 1, position: "relative", height: trackH(PX_HOUR_DAY), cursor: "copy", marginRight: 16 }}>
-              {hourLines(PX_HOUR_DAY)}
-              {dayPlaced.map(({ a, lane }) => (
-                <Block key={`${a.id}-${selectedDate}`} a={a} ds={selectedDate} px={PX_HOUR_DAY} lane={lane} lanes={dayLanes} colInfo={null} compact={false} />
+          <SoftCard style={{ padding: 18, marginBottom: 16 }}>
+            <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: "0 0 10px" }}>Composición del día</p>
+            <div style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", background: COLORS.elevated, marginBottom: 12 }}>
+              {Object.entries(BLOCK_TYPES).map(([key, t]) => typeMinutes[key] > 0 && (
+                <div key={key} style={{ flex: `${typeMinutes[key]} 0 0%`, background: t.tone }} />
               ))}
-              {selectedDate === todayISO && nowLine(PX_HOUR_DAY)}
+              {freeMin > 0 && <div style={{ flex: `${freeMin} 0 0%` }} />}
             </div>
-          </div>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              {Object.entries(BLOCK_TYPES).map(([key, t]) => {
+                const Icon = t.icon;
+                return (
+                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Icon size={12} color={t.tone} />
+                    <span style={{ ...fontMono, fontSize: 11.5, color: COLORS.muted }}>{t.label} · <span style={{ color: t.tone, fontWeight: 600 }}>{fmtDuration(typeMinutes[key])}</span></span>
+                  </div>
+                );
+              })}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ ...fontMono, fontSize: 11.5, color: COLORS.muted }}>Libre · <span style={{ color: COLORS.paper, fontWeight: 600 }}>{fmtDuration(freeMin)}</span></span>
+              </div>
+            </div>
+          </SoftCard>
+
+          {!isMobile && (
+            <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "16px 16px 22px 0", display: "flex" }}>
+              <div style={{ width: 76, position: "relative", height: trackH(PX_HOUR_DAY), flexShrink: 0 }}>
+                {gutterLabels(PX_HOUR_DAY)}
+              </div>
+              <div ref={dayTrackRef} onClick={e => handleTrackClick(e, selectedDate, PX_HOUR_DAY)}
+                style={{ flex: 1, position: "relative", height: trackH(PX_HOUR_DAY), cursor: "copy", marginRight: 16 }}>
+                {hourLines(PX_HOUR_DAY)}
+                {dayPlaced.map(({ a, lane }) => (
+                  <Block key={`${a.id}-${selectedDate}`} a={a} ds={selectedDate} px={PX_HOUR_DAY} lane={lane} lanes={dayLanes} colInfo={null} compact={false} />
+                ))}
+                {selectedDate === todayISO && nowLine(PX_HOUR_DAY)}
+              </div>
+            </div>
+          )}
 
           <div style={{ marginTop: 20, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 22 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14, marginBottom: 18 }}>
@@ -2199,13 +2242,6 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
         </div>
       )}
 
-      {ghost && (
-        <div style={{
-          position: "fixed", left: ghost.x, top: ghost.y, transform: "translate(-50%, -50%)", zIndex: 100, pointerEvents: "none",
-          background: ghost.tone, color: COLORS.onAccent, padding: "6px 14px", borderRadius: 8,
-          fontSize: 12.5, fontWeight: 600, ...fontBody, boxShadow: "0 6px 16px rgba(0,0,0,0.3)",
-        }}>{ghost.label}</div>
-      )}
     </div>
   );
 }
