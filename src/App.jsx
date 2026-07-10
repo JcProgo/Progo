@@ -302,6 +302,51 @@ function PrimaryButton({ children, onClick, accent = COLORS.gold }) {
 }
 
 /* ---------------------------------------------------------
+   Primitivos de diseño (base del ecosistema)
+   Inspirados en el mockup de PROGO: badges de ícono de color +
+   toggles circulares de check. Reutilizables en cualquier lista.
+--------------------------------------------------------- */
+
+// Badge cuadrado-redondeado con un ícono tintado en su color (fondo suave del
+// mismo color). Ancla visual a la izquierda de cualquier fila.
+function IconBadge({ icon: Icon, color, size = 40 }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: Math.round(size * 0.32),
+      background: color + "22", display: "flex", alignItems: "center",
+      justifyContent: "center", flexShrink: 0,
+    }}>
+      <Icon size={Math.round(size * 0.5)} color={color} strokeWidth={2.2} />
+    </div>
+  );
+}
+
+// Toggle circular estilo iOS: relleno del color con check blanco cuando está
+// hecho, aro vacío cuando no.
+function CheckCircle({ done, color, onClick, size = 28 }) {
+  return (
+    <button onClick={onClick} aria-pressed={done} style={{
+      width: size, height: size, borderRadius: "50%", flexShrink: 0, cursor: "pointer",
+      border: done ? "none" : `2px solid ${COLORS.border}`,
+      background: done ? color : "transparent", padding: 0,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      transition: "background 0.15s, border-color 0.15s",
+    }}>
+      {done && <Check size={Math.round(size * 0.56)} color={COLORS.onAccent} strokeWidth={3} />}
+    </button>
+  );
+}
+
+// Tarjeta suave contenedora — fondo elevado, sin borde duro, esquina 16.
+function SoftCard({ children, style }) {
+  return (
+    <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, ...style }}>
+      {children}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
    RESUMEN
 --------------------------------------------------------- */
 
@@ -1179,21 +1224,20 @@ function Tareas({ tasks, setTasks, insertTaskRow, patchTaskRow, deleteTaskRow })
         <PrimaryButton onClick={add} accent={meta.color}>{editingId ? <><Check size={16} /> Guardar</> : <><Plus size={16} /> Agregar</>}</PrimaryButton>
         {editingId && <button onClick={cancelEdit} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {list.map(t => (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "12px 16px" }}>
-            <div onClick={() => toggle(t.id)} style={{
-              width: 20, height: 20, borderRadius: 6, border: `2px solid ${t.done ? meta.color : COLORS.border}`,
-              background: t.done ? meta.color : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0,
-            }}>
-              {t.done && <Check size={13} color={COLORS.onAccent} strokeWidth={3} />}
-            </div>
+          <SoftCard key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px" }}>
+            <CheckCircle done={t.done} color={meta.color} onClick={() => toggle(t.id)} size={26} />
             <span style={{ ...fontBody, flex: 1, fontSize: 14.5, color: t.done ? COLORS.muted : COLORS.paper, textDecoration: t.done ? "line-through" : "none" }}>{t.title}</span>
-            <button onClick={() => startEdit(t)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><Pencil size={14} /></button>
-            <button onClick={() => remove(t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted }}><X size={15} /></button>
-          </div>
+            <button onClick={() => startEdit(t)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><Pencil size={15} /></button>
+            <button onClick={() => remove(t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><X size={16} /></button>
+          </SoftCard>
         ))}
-        {list.length === 0 && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5 }}>No hay tareas {meta.label.toLowerCase()}s todavía.</p>}
+        {list.length === 0 && (
+          <SoftCard style={{ padding: 20 }}>
+            <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, margin: 0 }}>No hay tareas {meta.label.toLowerCase()}s todavía.</p>
+          </SoftCard>
+        )}
       </div>
 
       {list.length > 0 && (
@@ -1285,16 +1329,16 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
         <StatCard label="Días perfectos" value={diasPerfectos} sub={`de ${totalDays} días, todos los hábitos`} accent={COLORS.violet} />
       </div>
 
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
+      <SoftCard style={{ padding: 18, marginBottom: 16 }}>
         <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>{editingId ? "Editar hábito" : "Agregar hábito"}</p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input value={newHabit.name} onChange={e => setNewHabit({ ...newHabit, name: e.target.value })}
             onKeyDown={e => e.key === "Enter" && addHabit()}
             placeholder="Ej. Meditar 10 min" style={{ ...inputStyle(), marginBottom: 0, flex: 1, minWidth: 160 }} />
           <div style={{ display: "flex", gap: 6 }}>
             {HABIT_TONE_KEYS.map(k => (
               <div key={k} onClick={() => setNewHabit({ ...newHabit, toneKey: k })} style={{
-                width: 34, height: 34, borderRadius: 8, cursor: "pointer", background: COLORS[k],
+                width: 34, height: 34, borderRadius: 10, cursor: "pointer", background: COLORS[k],
                 outline: newHabit.toneKey === k ? `2px solid ${COLORS.paper}` : "none", outlineOffset: 2,
               }} />
             ))}
@@ -1302,45 +1346,55 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
           <PrimaryButton onClick={addHabit} accent={COLORS.teal}>{editingId ? <><Check size={16} /> Guardar</> : <><Plus size={16} /> Agregar</>}</PrimaryButton>
           {editingId && <button onClick={cancelEdit} style={{ ...fontBody, background: "transparent", border: "none", color: COLORS.muted, fontSize: 13.5, cursor: "pointer" }}>Cancelar</button>}
         </div>
+      </SoftCard>
 
-        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 14px" }}>Semana actual (1–7 de julio)</p>
-        {habits.length === 0 ? (
-          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5 }}>No hay hábitos todavía. Agrega el primero arriba.</p>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <div style={{ minWidth: 500 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 34px) 70px 24px 24px", gap: 8, alignItems: "center", marginBottom: 14 }}>
-                <span></span>
-                {DAY_LABELS.map((d, i) => <span key={i} style={{ ...fontMono, textAlign: "center", color: COLORS.muted, fontSize: 12 }}>{d}</span>)}
-                <span style={{ ...fontMono, textAlign: "right", color: COLORS.muted, fontSize: 12 }}>racha</span>
-                <span></span>
-                <span></span>
-              </div>
-              {habits.map(h => {
-                const hColor = COLORS[h.toneKey];
-                return (
-                <div key={h.id} style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 34px) 70px 24px 24px", gap: 8, alignItems: "center", padding: "10px 0", borderTop: `1px solid ${COLORS.border}` }}>
-                  <span style={{ ...fontBody, color: COLORS.paper, fontSize: 14 }}>{h.name}</span>
-                  {[1, 2, 3, 4, 5, 6, 7].map(d => {
+      {habits.length === 0 ? (
+        <SoftCard style={{ padding: 20, marginBottom: 20 }}>
+          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, margin: 0 }}>No hay hábitos todavía. Agrega el primero arriba.</p>
+        </SoftCard>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 2px" }}>Esta semana · 1–7 de julio</p>
+          {habits.map(h => {
+            const hColor = COLORS[h.toneKey];
+            const streak = streakUpTo(h.history, 7);
+            return (
+              <SoftCard key={h.id} style={{ padding: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <IconBadge icon={Flame} color={hColor} size={42} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ ...fontBody, color: COLORS.paper, fontSize: 15, fontWeight: 600, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.name}</p>
+                    <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5, margin: "3px 0 0", display: "flex", alignItems: "center", gap: 5 }}>
+                      <Flame size={12} color={hColor} /> {streak} {streak === 1 ? "día" : "días"} de racha
+                    </p>
+                  </div>
+                  <button onClick={() => startEditHabit(h)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><Pencil size={15} /></button>
+                  <button onClick={() => removeHabit(h.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><X size={16} /></button>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 6, marginTop: 16 }}>
+                  {[1, 2, 3, 4, 5, 6, 7].map((d, i) => {
                     const ds = dateStr(d);
                     const done = !!h.history[ds];
                     return (
-                      <div key={d} onClick={() => toggleDate(h.id, ds)} style={{
-                        width: 22, height: 22, margin: "0 auto", borderRadius: 5, cursor: "pointer",
-                        background: done ? hColor : "transparent", border: `1.5px solid ${done ? hColor : COLORS.border}`,
-                      }} />
+                      <div key={d} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: 1 }}>
+                        <span style={{ ...fontMono, fontSize: 11, color: COLORS.muted }}>{DAY_LABELS[i]}</span>
+                        <button onClick={() => toggleDate(h.id, ds)} aria-pressed={done} style={{
+                          width: 30, height: 30, borderRadius: "50%", cursor: "pointer", padding: 0,
+                          background: done ? hColor : "transparent", border: done ? "none" : `2px solid ${COLORS.border}`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          transition: "background 0.15s, border-color 0.15s",
+                        }}>
+                          {done && <Check size={15} color={COLORS.onAccent} strokeWidth={3} />}
+                        </button>
+                      </div>
                     );
                   })}
-                  <span style={{ ...fontMono, textAlign: "right", color: hColor, fontSize: 13, fontWeight: 600 }}>{streakUpTo(h.history, 7)} días</span>
-                  <button onClick={() => startEditHabit(h)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, justifySelf: "center" }}><Pencil size={13} /></button>
-                  <button onClick={() => removeHabit(h.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, justifySelf: "center" }}><X size={14} /></button>
                 </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
+              </SoftCard>
+            );
+          })}
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.3fr 1fr", gap: 20, alignItems: "start" }}>
         <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18 }}>
