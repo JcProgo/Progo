@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useId } from "react";
 import { supabase, isSupabaseConfigured, setRememberMe } from "./supabaseClient";
 import {
   LayoutGrid, Wallet, Target, CheckSquare, Flame, Package,
@@ -208,7 +208,11 @@ const STATUS_META = {
 --------------------------------------------------------- */
 
 function ProgoMark({ size = 34, mode = "dark" }) {
-  const gradId = `progoMarkGrad-${mode}`;
+  // Id único por instancia: el logo se monta en varios lugares a la vez (header,
+  // menú lateral, pantalla de login) y un id de gradiente compartido entre
+  // instancias hace que el navegador a veces pinte con los stops de la instancia
+  // equivocada al cambiar de tema (se queda "pegado" en el color anterior).
+  const gradId = `progoMarkGrad-${useId()}`;
   const stops = mode === "dark"
     ? ["#0A2540", "#4FC3F7"] // logo azul
     : ["#FF6B00", "#FFD200"]; // logo naranja
@@ -233,7 +237,7 @@ function ProgoMark({ size = 34, mode = "dark" }) {
 // Wordmark "PROGO" con las O's como anillos de color (azul en oscuro, naranja en
 // claro) — misma tipografía y proporciones que los logos originales del Finder.
 function ProgoWordmark({ height = 20, mode = "dark" }) {
-  const gradId = `progoWordmarkGrad-${mode}`;
+  const gradId = `progoWordmarkGrad-${useId()}`;
   const stops = mode === "dark"
     ? ["#0A2540", "#4FC3F7"] // O azul
     : ["#FF6B00", "#FFD200"]; // O naranja
@@ -1656,8 +1660,9 @@ function Notas({ notes, setNotes, insertNoteRow, patchNoteRow, deleteNoteRow }) 
   const [editor, setEditor] = useState(null); // { mode, id?, title, content, toneKey, createdAt? }
   const [confirmDelete, setConfirmDelete] = useState(false);
   const saveTimer = useRef(null);
+  const insertingRef = useRef(false);
 
-  function openNew() { setConfirmDelete(false); setEditor({ mode: "new", title: "", content: "", toneKey: "gold", createdAt: new Date().toISOString() }); }
+  function openNew() { setConfirmDelete(false); insertingRef.current = false; setEditor({ mode: "new", title: "", content: "", toneKey: "gold", createdAt: new Date().toISOString() }); }
   function openEdit(n) { setConfirmDelete(false); setEditor({ mode: "edit", id: n.id, title: n.title, content: n.content, toneKey: n.toneKey, createdAt: n.createdAt }); }
 
   async function doSave(e) {
@@ -1665,7 +1670,14 @@ function Notas({ notes, setNotes, insertNoteRow, patchNoteRow, deleteNoteRow }) 
     if (!e.title.trim() && !e.content.trim()) return;
     const payload = { title: e.title.trim() || "Sin título", content: e.content, toneKey: e.toneKey };
     if (e.mode === "new") {
+      // Si ya hay una creación en curso, no dispares una segunda: el próximo
+      // guardado (debounce o al cerrar) recogerá el texto más reciente una
+      // vez la nota exista y el modo pase a "edit". Sin esto, escribir justo
+      // durante el viaje de red de la primera inserción crea una nota duplicada.
+      if (insertingRef.current) return;
+      insertingRef.current = true;
       const created = await insertNoteRow(payload);
+      insertingRef.current = false;
       if (created) {
         setNotes(prev => [created, ...prev]);
         setEditor(prev => (prev && prev.mode === "new") ? { ...prev, mode: "edit", id: created.id, createdAt: created.createdAt } : prev);
