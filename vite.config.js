@@ -8,6 +8,14 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Service worker propio (src/sw.js) en vez de uno auto-generado: necesitamos
+      // manejar los eventos `push` y `notificationclick` para los recordatorios.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+      },
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'PROGO',

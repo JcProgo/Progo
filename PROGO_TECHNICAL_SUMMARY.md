@@ -139,6 +139,34 @@ CRUD completo y persistido (agregar/editar/eliminar), siguiendo el mismo patrón
 ### Notas (nueva)
 Tabla `notes` (title, content, tone_key, pinned, updated_at). Grilla de tarjetas de color (estilo Apple Notes/Google Keep, 2 columnas en móvil) — tocar una abre un modal de edición (título + contenido + selector de 4 colores, mismo patrón que Hábitos). Pin para fijar arriba. Hora relativa ("hace 5 min", "hace 2 h", etc.) en cada tarjeta. **Pendiente:** el usuario debe correr `supabase/schema.sql` de nuevo (idempotente, solo crea `notes`) — la tabla no existe todavía en la base real. **No verificado con clic real** — ver §9.
 
+### Notificaciones push (nueva, requiere pasos manuales pendientes)
+Recordatorios individuales por hábito/tarea/bloque de rutina, entregados como push real (llegan
+aunque la app esté cerrada), no solo mientras la app está abierta.
+
+- **Cliente:** botón "Activar notificaciones" en el drawer/sidebar (`enablePushNotifications` en
+  `App.jsx`) pide permiso (`Notification.requestPermission`), se suscribe al `PushManager` del
+  service worker con la llave pública VAPID, y guarda `{endpoint, p256dh, auth}` en la tabla
+  `push_subscriptions` (upsert por `endpoint`, así que reinstalar/reabrir no crea duplicados).
+- **Service worker propio:** se migró `vite-plugin-pwa` de `generateSW` a `strategies: 'injectManifest'`
+  (`src/sw.js`, bundleado con `workbox-core`/`workbox-precaching`) porque el service worker
+  auto-generado no permite escuchar `push`/`notificationclick`. `src/sw.js` hace el precaching manual
+  (`precacheAndRoute(self.__WB_MANIFEST)`, `skipWaiting`, `clientsClaim`) y además maneja `push`
+  (muestra la notificación) y `notificationclick` (enfoca/abre la app).
+- **Por ítem:** `habits.reminder_time` y `tasks.reminder_time` (columna `time`, hora local) — ícono de
+  campana en cada fila de Hábitos/Tareas abre un `<input type="time">` inline. `activities.notify_enabled`
+  (boolean) — toggle "Notificarme a la hora de inicio" en el modal de edición de Rutina (reusa el
+  `start_min` del bloque, no un campo de hora aparte). Todos tienen `last_notified_date` para que la
+  Edge Function no reenvíe el mismo aviso dos veces el mismo día.
+- **Servidor:** `supabase/functions/send-reminders/index.ts` (Deno Edge Function) — cron cada minuto
+  vía `pg_cron`/`pg_net`, calcula la hora en `America/Bogota`, busca ítems cuya hora coincida y no se
+  hayan notificado hoy, y despacha el push con `npm:web-push` firmado con las llaves VAPID.
+- **Pendiente del lado del usuario (no lo puede hacer el asistente):** correr el SQL nuevo, desplegar
+  la Edge Function, configurar sus secrets (`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`),
+  activar `pg_cron`+`pg_net` y programar el cron job, y agregar `VITE_VAPID_PUBLIC_KEY` en Vercel.
+  Instrucciones paso a paso en `supabase/PUSH_NOTIFICATIONS_SETUP.md`. **No verificado end-to-end**
+  (el asistente no puede confirmar que un push realmente llega a un iPhone) — pendiente que el
+  usuario lo prueba en su dispositivo tras completar esos pasos.
+
 ### Usuarios (solo admin)
 Lista de perfiles, activar/desactivar cuentas.
 
@@ -163,11 +191,14 @@ Archivo `.env` (NO está en git, sí en `.gitignore`; `.env.example` sí está c
 ```
 VITE_SUPABASE_URL=https://yzpyobyflkyvpflqqljt.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ... (JWT anon/public key, seguro exponer en frontend)
+VITE_VAPID_PUBLIC_KEY=BH4kqLS8... (llave pública VAPID para notificaciones push, también segura de exponer)
 ```
 
-**En Vercel** (Project → Settings → Environment Variables) deben existir las mismas dos, marcadas para Production+Preview. **Importante:** Vite las "hornea" en build time — si se cambian, hay que hacer **Redeploy** manual en Vercel, no basta con guardarlas.
+**En Vercel** (Project → Settings → Environment Variables) deben existir las tres, marcadas para Production+Preview. **Importante:** Vite las "hornea" en build time — si se cambian, hay que hacer **Redeploy** manual en Vercel, no basta con guardarlas.
 
-No hay ninguna otra variable de entorno ni secreto en el proyecto. El token personal de Vercel usado para automatizar deploys/env vars durante esta sesión NO se guardó en ningún archivo (se usó una sola vez vía API y se descartó).
+La contraparte privada de VAPID (`VAPID_PRIVATE_KEY`) **nunca** va en `.env` del cliente — vive solo
+como secret de la Edge Function `send-reminders` en Supabase (ver `supabase/PUSH_NOTIFICATIONS_SETUP.md`).
+El token personal de Vercel usado para automatizar deploys/env vars durante esta sesión NO se guardó en ningún archivo (se usó una sola vez vía API y se descartó).
 
 ---
 
@@ -197,6 +228,8 @@ No hay ninguna otra variable de entorno ni secreto en el proyecto. El token pers
 
 ## 10. Próximos pasos sugeridos (no empezados)
 
+- **Completar la configuración de notificaciones push** (SQL, deploy de la Edge Function, secrets VAPID, pg_cron, env var en Vercel — ver `supabase/PUSH_NOTIFICATIONS_SETUP.md`) y probar en el iPhone real que un recordatorio de hábito/tarea/rutina efectivamente llega con la app cerrada.
+- Confirmar que el cambio de `vite-plugin-pwa` de `generateSW` a `injectManifest` (necesario para poder escuchar `push`/`notificationclick`) no rompió el comportamiento de instalación/actualización de la PWA — probar en el iPhone que la app instalada sigue actualizándose igual que antes tras un deploy.
 - Confirmar con el usuario, en su iPhone real, que la barra inferior ya quedó bien posicionada (ver riesgo #1 arriba) — es el pendiente más urgente.
 - Probar el checkbox "mantener sesión iniciada" con una cuenta real (marcado y desmarcado) para confirmar que efectivamente cambia el comportamiento al cerrar/reabrir la app.
 - Probar Ingresos y saldos con datos reales (ambas pestañas: registrar, editar, eliminar un ingreso y un egreso, confirmar que el saldo se actualiza y que sigue ahí tras recargar).

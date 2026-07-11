@@ -2,7 +2,7 @@
 -- Corre este archivo completo en Supabase: Project -> SQL Editor -> New query -> pega y "Run".
 -- Es idempotente: usa "if not exists" / "add column if not exists" en todo,
 -- así que es seguro volver a correrlo en una base que ya tiene parte del esquema
--- (por ejemplo, para agregar solo la columna `profiles.hidden_categories`,
+-- (por ejemplo, para agregar solo la sección 7 de notificaciones push,
 -- que es lo único nuevo si ya corriste una versión anterior de este archivo).
 --
 -- Este archivo reemplaza el historial de migraciones incrementales
@@ -299,3 +299,32 @@ create index if not exists tasks_user_timeframe_idx on tasks (user_id, timeframe
 create index if not exists expenses_user_date_idx on expenses (user_id, date desc);
 create index if not exists activities_user_date_idx on activities (user_id, date);
 create index if not exists trades_user_date_idx on trades (user_id, date desc);
+
+-- ============================================================
+-- 7. Notificaciones push — recordatorios individuales por hábito/tarea/bloque
+-- ============================================================
+
+-- Hora local (America/Bogota) a la que debe sonar el recordatorio. `last_notified_date`
+-- evita reenviar el mismo aviso más de una vez el mismo día (lo actualiza la Edge Function).
+alter table habits add column if not exists reminder_time time;
+alter table habits add column if not exists last_notified_date date;
+alter table tasks add column if not exists reminder_time time;
+alter table tasks add column if not exists last_notified_date date;
+alter table activities add column if not exists notify_enabled boolean not null default false;
+alter table activities add column if not exists last_notified_date date;
+
+-- Suscripciones push del navegador (una por dispositivo/instalación) para poder
+-- despachar el aviso aunque la app esté cerrada.
+create table if not exists push_subscriptions (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table push_subscriptions enable row level security;
+drop policy if exists "own rows" on push_subscriptions;
+create policy "own rows" on push_subscriptions for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index if not exists push_subscriptions_user_idx on push_subscriptions (user_id);
