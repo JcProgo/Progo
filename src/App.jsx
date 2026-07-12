@@ -66,7 +66,8 @@ const DARK_THEME = {
   // propósito, para que se vean "recesadas" contra el azul del fondo.
   card: "#0C0D0F",
   elevated: "#17181B",
-  border: "#232427",
+  // Casi invisible a propósito — las tarjetas se distinguen por sombra, no por borde duro.
+  border: "#1C1D20",
   paper: "#F1F2F3",
   muted: "#8B8E92",
   gold: "#B5842C",
@@ -84,7 +85,8 @@ const LIGHT_THEME = {
   surface: "#FFFFFF",
   card: "#FFFFFF",
   elevated: "#F1F2F3",
-  border: "#E3E4E6",
+  // Casi invisible a propósito — las tarjetas se distinguen por sombra, no por borde duro.
+  border: "#EEEEF0",
   paper: "#17181A",
   muted: "#86898D",
   gold: "#A66A1B",
@@ -283,7 +285,7 @@ function ProgoWordmark({ height = 20, mode = "dark" }) {
 function StatCard({ label, value, sub, accent }) {
   return (
     <div style={{
-      background: COLORS.card, border: `1px solid ${COLORS.border}`,
+      background: COLORS.card, border: "1px solid transparent", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
       borderRadius: 14, padding: "18px 20px", flex: 1, minWidth: 160,
     }}>
       <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: 0 }}>{label}</p>
@@ -298,7 +300,7 @@ function SectionHeader({ icon: Icon, title, subtitle, accent, right }) {
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div style={{
-          width: 44, height: 44, borderRadius: 12, background: accent + "22",
+          width: 44, height: 44, borderRadius: "50%", background: accent + "22",
           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
         }}>
           <Icon size={22} color={accent} strokeWidth={2} />
@@ -331,12 +333,12 @@ function PrimaryButton({ children, onClick, accent = COLORS.gold }) {
    toggles circulares de check. Reutilizables en cualquier lista.
 --------------------------------------------------------- */
 
-// Badge cuadrado-redondeado con un ícono tintado en su color (fondo suave del
-// mismo color). Ancla visual a la izquierda de cualquier fila.
+// Badge circular con un ícono tintado en su color (fondo suave del mismo
+// color). Ancla visual a la izquierda de cualquier fila.
 function IconBadge({ icon: Icon, color, size = 40 }) {
   return (
     <div style={{
-      width: size, height: size, borderRadius: Math.round(size * 0.32),
+      width: size, height: size, borderRadius: "50%",
       background: color + "22", display: "flex", alignItems: "center",
       justifyContent: "center", flexShrink: 0,
     }}>
