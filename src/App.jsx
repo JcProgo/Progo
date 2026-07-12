@@ -73,6 +73,9 @@ const DARK_THEME = {
   teal: "#1E9E82",
   coral: "#CC6248",
   violet: "#7B6DD8",
+  // Acento de marca — el azul del logo. Reservado para navegación/branding (tab
+  // activo, etc.), no reemplaza los 4 colores de arriba usados en el contenido.
+  brand: "#4FC3F7",
   onAccent: "#0A0B0D",
 };
 
@@ -88,6 +91,7 @@ const LIGHT_THEME = {
   teal: "#0E8C6E",
   coral: "#B03F29",
   violet: "#5C46B8",
+  brand: "#C2410C",
   onAccent: "#FFFFFF",
 };
 
@@ -545,13 +549,13 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
           const confirming = confirmDeleteCatId === cat;
           return (
             <div key={cat} onClick={() => !confirming && setSelectedCategory(cat)} style={{
-              background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 12,
-              padding: "14px 16px", cursor: confirming ? "default" : "pointer", transition: "border-color 0.15s",
-              position: "relative", boxShadow: "0 1px 2px rgba(0,0,0,0.24)",
+              background: COLORS.card, border: "1px solid transparent", borderRadius: 14,
+              padding: "16px", cursor: confirming ? "default" : "pointer", transition: "border-color 0.15s",
+              position: "relative", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Icon size={15} color={meta.color} />
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 34, height: 34, borderRadius: "50%", background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon size={16} color={meta.color} />
                 </div>
                 <span style={{ ...fontBody, fontSize: 13, color: COLORS.paper, fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat}</span>
                 <button onClick={e => { e.stopPropagation(); setConfirmDeleteCatId(cat); }} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, padding: 2, display: "flex", flexShrink: 0 }}>
@@ -570,8 +574,8 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
                 </div>
               ) : (
                 <>
-                  <p style={{ ...fontMono, fontSize: 17, fontWeight: 600, color: COLORS.paper, margin: 0 }}>{fmtCOP(amount)}</p>
-                  <p style={{ ...fontMono, fontSize: 11.5, color: COLORS.muted, margin: "2px 0 0" }}>{pct}% del total</p>
+                  <p style={{ ...fontMono, fontSize: 19, fontWeight: 700, color: COLORS.paper, margin: 0 }}>{fmtCOP(amount)}</p>
+                  <p style={{ ...fontMono, fontSize: 11.5, color: COLORS.muted, margin: "3px 0 0" }}>{pct}% del total</p>
                 </>
               )}
             </div>
@@ -3522,8 +3526,8 @@ export default function App() {
           <button key={item.key} onClick={() => selectView(item.key)} style={{
             ...fontBody, display: "flex", alignItems: "center", gap: 10, width: "100%",
             padding: "10px 12px", borderRadius: 9, marginBottom: 4, border: "none", cursor: "pointer",
-            background: active ? item.accent + "1c" : "transparent",
-            color: active ? item.accent : COLORS.muted, fontSize: 13.5, fontWeight: active ? 600 : 500,
+            background: active ? COLORS.brand + "1c" : "transparent",
+            color: active ? COLORS.brand : COLORS.muted, fontSize: 13.5, fontWeight: active ? 600 : 500,
             textAlign: "left",
           }}>
             <Icon size={17} />
@@ -3678,7 +3682,7 @@ export default function App() {
               <button key={item.key} onClick={() => selectView(item.key)} style={{
                 flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
                 background: "transparent", border: "none", cursor: "pointer", padding: "4px 0",
-                color: active ? item.accent : COLORS.muted,
+                color: active ? COLORS.brand : COLORS.muted,
               }}>
                 <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
                 <span style={{ ...fontBody, fontSize: 10, fontWeight: active ? 700 : 500 }}>{BOTTOM_TAB_LABELS[item.key]}</span>
@@ -3688,7 +3692,7 @@ export default function App() {
           <button onClick={() => setNavOpen(true)} style={{
             flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
             background: "transparent", border: "none", cursor: "pointer", padding: "4px 0",
-            color: moreActive ? COLORS.gold : COLORS.muted,
+            color: moreActive ? COLORS.brand : COLORS.muted,
           }}>
             <MoreHorizontal size={22} strokeWidth={moreActive ? 2.2 : 1.8} />
             <span style={{ ...fontBody, fontSize: 10, fontWeight: moreActive ? 700 : 500 }}>Más</span>
