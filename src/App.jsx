@@ -2541,17 +2541,17 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Inicio</label>
-                <input type="time" step="60" value={minToHHMM(editor.start)} onChange={e => {
+                <input type="time" step="60" className="progo-time-input" value={minToHHMM(editor.start)} onChange={e => {
                   const start = Math.max(dayStart, Math.min(dayEnd - 1, hhmmToMin(e.target.value)));
                   setEditor({ ...editor, start, end: Math.max(editor.end, start + 1) });
-                }} style={inputStyle()} />
+                }} style={{ ...inputStyle(), fontSize: 20, fontWeight: 700, textAlign: "center", padding: "14px 4px" }} />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Fin</label>
-                <input type="time" step="60" value={minToHHMM(editor.end)} onChange={e => {
+                <input type="time" step="60" className="progo-time-input" value={minToHHMM(editor.end)} onChange={e => {
                   const end = Math.max(editor.start + 1, Math.min(dayEnd, hhmmToMin(e.target.value)));
                   setEditor({ ...editor, end });
-                }} style={inputStyle()} />
+                }} style={{ ...inputStyle(), fontSize: 20, fontWeight: 700, textAlign: "center", padding: "14px 4px" }} />
               </div>
             </div>
             {editor.source && (
