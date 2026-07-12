@@ -1892,6 +1892,18 @@ function fmtTime(min) {
 }
 function snapToGrid(min) { return Math.round(min / SNAP_MIN) * SNAP_MIN; }
 
+// Conversión para el <input type="time">, que solo entiende "HH:MM" (00:00–23:59) — 1440
+// (medianoche, el límite superior del día visible en Rutina) se muestra como 23:59.
+function minToHHMM(min) {
+  const clamped = Math.max(0, Math.min(1439, min));
+  const h = Math.floor(clamped / 60), m = clamped % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+function hhmmToMin(hhmm) {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
 // ¿La actividad ocurre en esta fecha? (fecha exacta o repetición diaria/semanal)
 function occursOn(a, ds) {
   if (a.date === ds) return true;
@@ -2529,15 +2541,17 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Inicio</label>
-                <select value={editor.start} onChange={e => { const start = Number(e.target.value); setEditor({ ...editor, start, end: Math.max(editor.end, start + SNAP_MIN) }); }} style={inputStyle()}>
-                  {timeOptions.filter(m => m < dayEnd).map(m => <option key={m} value={m}>{fmtTime(m)}</option>)}
-                </select>
+                <input type="time" step="60" value={minToHHMM(editor.start)} onChange={e => {
+                  const start = Math.max(dayStart, Math.min(dayEnd - 1, hhmmToMin(e.target.value)));
+                  setEditor({ ...editor, start, end: Math.max(editor.end, start + 1) });
+                }} style={inputStyle()} />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Fin</label>
-                <select value={editor.end} onChange={e => setEditor({ ...editor, end: Number(e.target.value) })} style={inputStyle()}>
-                  {timeOptions.filter(m => m > editor.start).map(m => <option key={m} value={m}>{fmtTime(m)}</option>)}
-                </select>
+                <input type="time" step="60" value={minToHHMM(editor.end)} onChange={e => {
+                  const end = Math.max(editor.start + 1, Math.min(dayEnd, hhmmToMin(e.target.value)));
+                  setEditor({ ...editor, end });
+                }} style={inputStyle()} />
               </div>
             </div>
             {editor.source && (
@@ -3055,6 +3069,19 @@ export default function App() {
   const [notifPermission, setNotifPermission] = useState(() => (typeof Notification !== "undefined" ? Notification.permission : "unsupported"));
   const [notifBusy, setNotifBusy] = useState(false);
   const [notifError, setNotifError] = useState("");
+
+  // Si el usuario ya dio permiso de notificaciones antes (en este dispositivo), renueva la
+  // suscripción en silencio al abrir la app — sin esto, tocaría tocar "Activar notificaciones"
+  // cada vez. Si el permiso todavía no se ha pedido, esto no muestra nada: iOS/Safari exige
+  // que ese primer permiso se pida desde un toque real del usuario, no se puede automatizar.
+  useEffect(() => {
+    if (!profile) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    enablePushNotifications();
+    // Depende de profile?.id, no de profile completo: profile se reasigna con cada
+    // patch (ingreso mensual, categorías ocultas, etc.) y no queremos re-suscribir en cada uno.
+  }, [profile?.id]);
+
   const [expenses, setExpenses] = useState([]);
   const [customCategories, setCustomCategories] = useState([]);
   const [goals, setGoals] = useState({ diario: [], semanal: [], mensual: [], trimestral: [] });
