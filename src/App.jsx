@@ -34,17 +34,17 @@ function ChartLoading({ height }) {
    PROGO — panel de negocio para comunidades de e-commerce
    by JC CREW · "Organiza. Ejecuta. Progresa."
 
-   Tokens (validated: node scripts/validate_palette.js — see dataviz skill)
-   dark   ink:      #0E1318      light  ink:      #F5F1E8
-          card:     #161C23             card:     #FFFFFF
-          elevated: #1E2630             elevated: #F0EBE0
-          border:   #242D36             border:   #E4DDCB
-          paper:    #F3EEE3             paper:    #14110D
-          muted:    #8B93A0             muted:    #726F68
-          gold:     #B5842C            gold:     #A66A1B
-          teal:     #1E9E82            teal:     #0E8C6E
-          coral:    #CC6248            coral:    #B03F29
-          violet:   #7B6DD8            violet:   #5C46B8
+   Paleta "un solo acento" (2026-07-11): grises neutros + el color del logo como
+   único acento por tema — azul en oscuro, naranja en claro. gold/teal/coral/violet
+   apuntan al mismo valor a propósito (ver comentario junto a DARK_THEME/LIGHT_THEME).
+   Contraste verificado con WCAG (accent sobre card/fondo ≥ 5:1 en ambos temas).
+   dark   ink:      #0A0B0D      light  ink:      #FAFAFA
+          card:     #16171A             card:     #FFFFFF
+          elevated: #1E2023             elevated: #F1F2F3
+          border:   #2B2D30             border:   #E3E4E6
+          paper:    #F1F2F3             paper:    #17181A
+          muted:    #8B8E92             muted:    #86898D
+          acento:   #4FC3F7 (azul)      acento:   #C2410C (naranja)
 --------------------------------------------------------- */
 
 const FONT_IMPORT_ID = "progo-fonts";
@@ -56,31 +56,36 @@ if (typeof document !== "undefined" && !document.getElementById(FONT_IMPORT_ID))
   document.head.appendChild(link);
 }
 
+// Paleta "un solo acento": escala de grises neutros (sin tinte cálido/frío) +
+// el color del logo como único acento — azul en oscuro, naranja en claro. Las 4
+// claves de acento (gold/teal/coral/violet) apuntan todas al mismo valor a propósito:
+// evita tocar la lógica/estructura de cada sección (todas siguen leyendo COLORS.gold,
+// COLORS.teal, etc.) mientras visualmente queda un solo acento en toda la app.
 const DARK_THEME = {
-  ink: "#0E1318",
-  card: "#161C23",
-  elevated: "#1E2630",
-  border: "#242D36",
-  paper: "#F3EEE3",
-  muted: "#8B93A0",
-  gold: "#B5842C",
-  teal: "#1E9E82",
-  coral: "#CC6248",
-  violet: "#7B6DD8",
-  onAccent: "#0E1318",
+  ink: "#0A0B0D",
+  card: "#16171A",
+  elevated: "#1E2023",
+  border: "#2B2D30",
+  paper: "#F1F2F3",
+  muted: "#8B8E92",
+  gold: "#4FC3F7",
+  teal: "#4FC3F7",
+  coral: "#4FC3F7",
+  violet: "#4FC3F7",
+  onAccent: "#0A0B0D",
 };
 
 const LIGHT_THEME = {
-  ink: "#F5F1E8",
+  ink: "#FAFAFA",
   card: "#FFFFFF",
-  elevated: "#F0EBE0",
-  border: "#E4DDCB",
-  paper: "#14110D",
-  muted: "#726F68",
-  gold: "#A66A1B",
-  teal: "#0E8C6E",
-  coral: "#B03F29",
-  violet: "#5C46B8",
+  elevated: "#F1F2F3",
+  border: "#E3E4E6",
+  paper: "#17181A",
+  muted: "#86898D",
+  gold: "#C2410C",
+  teal: "#C2410C",
+  coral: "#C2410C",
+  violet: "#C2410C",
   onAccent: "#FFFFFF",
 };
 
