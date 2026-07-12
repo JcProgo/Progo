@@ -59,6 +59,9 @@ if (typeof document !== "undefined" && !document.getElementById(FONT_IMPORT_ID))
 
 const DARK_THEME = {
   ink: "#0A0B0D",
+  // Fondo del área de contenido (entre la barra superior e inferior, ambas negras):
+  // el azul oscuro que tenía `card` antes del ajuste a gris neutro puro.
+  surface: "#161C23",
   card: "#16171A",
   elevated: "#1E2023",
   border: "#2B2D30",
@@ -73,6 +76,7 @@ const DARK_THEME = {
 
 const LIGHT_THEME = {
   ink: "#FAFAFA",
+  surface: "#FFFFFF",
   card: "#FFFFFF",
   elevated: "#F1F2F3",
   border: "#E3E4E6",
@@ -3588,7 +3592,7 @@ export default function App() {
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             paddingTop: "calc(14px + env(safe-area-inset-top, 0px))", paddingBottom: 14, paddingLeft: 16, paddingRight: 16,
-            background: COLORS.card, borderBottom: `1px solid ${COLORS.border}`, position: "sticky", top: 0, zIndex: 40,
+            background: COLORS.ink, borderBottom: `1px solid ${COLORS.border}`, position: "sticky", top: 0, zIndex: 40,
           }}>
             {brand(30)}
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -3624,7 +3628,7 @@ export default function App() {
       )}
 
       <div style={{
-        flex: 1, minWidth: 0, overflowY: "auto", overscrollBehaviorY: "contain",
+        flex: 1, minWidth: 0, overflowY: "auto", overscrollBehaviorY: "contain", background: COLORS.surface,
         ...(isMobile
           ? { padding: 16 }
           : { padding: "28px 32px" }),
