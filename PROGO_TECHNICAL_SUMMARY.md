@@ -139,9 +139,12 @@ CRUD completo y persistido (agregar/editar/eliminar), siguiendo el mismo patrón
 ### Notas (nueva)
 Tabla `notes` (title, content, tone_key, pinned, updated_at). Grilla de tarjetas de color (estilo Apple Notes/Google Keep, 2 columnas en móvil) — tocar una abre un modal de edición (título + contenido + selector de 4 colores, mismo patrón que Hábitos). Pin para fijar arriba. Hora relativa ("hace 5 min", "hace 2 h", etc.) en cada tarjeta. **Pendiente:** el usuario debe correr `supabase/schema.sql` de nuevo (idempotente, solo crea `notes`) — la tabla no existe todavía en la base real. **No verificado con clic real** — ver §9.
 
-### Notificaciones push (nueva, requiere pasos manuales pendientes)
-Recordatorios individuales por hábito/tarea/bloque de rutina, entregados como push real (llegan
-aunque la app esté cerrada), no solo mientras la app está abierta.
+### Notificaciones push (nueva)
+Recordatorios automáticos por hábito/tarea/bloque de rutina, entregados como push real (llegan
+aunque la app esté cerrada), no solo mientras la app está abierta. El SQL, la Edge Function, los
+secrets VAPID, `pg_cron`/`pg_net` y la variable en Vercel ya se configuraron en vivo con el
+usuario el 2026-07-11 — ver `supabase/PUSH_NOTIFICATIONS_SETUP.md` para el estado exacto y qué
+hacer si se vuelve a tocar el diseño.
 
 - **Cliente:** botón "Activar notificaciones" en el drawer/sidebar (`enablePushNotifications` en
   `App.jsx`) pide permiso (`Notification.requestPermission`), se suscribe al `PushManager` del
@@ -152,20 +155,26 @@ aunque la app esté cerrada), no solo mientras la app está abierta.
   auto-generado no permite escuchar `push`/`notificationclick`. `src/sw.js` hace el precaching manual
   (`precacheAndRoute(self.__WB_MANIFEST)`, `skipWaiting`, `clientsClaim`) y además maneja `push`
   (muestra la notificación) y `notificationclick` (enfoca/abre la app).
-- **Por ítem:** `habits.reminder_time` y `tasks.reminder_time` (columna `time`, hora local) — ícono de
-  campana en cada fila de Hábitos/Tareas abre un `<input type="time">` inline. `activities.notify_enabled`
-  (boolean) — toggle "Notificarme a la hora de inicio" en el modal de edición de Rutina (reusa el
-  `start_min` del bloque, no un campo de hora aparte). Todos tienen `last_notified_date` para que la
-  Edge Function no reenvíe el mismo aviso dos veces el mismo día.
+- **Hábitos/Tareas — horarios fijos, no personalizables por ítem** (decisión explícita del usuario,
+  reemplazó un primer diseño con hora libre por ítem): `reminders_enabled` (boolean) — la campanita en
+  cada fila es un simple on/off. Si está activo y el ítem NO está marcado hecho hoy, la Edge Function
+  avisa a las 8am/12pm/6pm (hora de Bogotá), con mensaje distinto en cada franja. En cuanto se marca
+  hecho, para de avisar ese día. `reminder_time` (columna `time`) quedó en el schema sin uso — se
+  dejó por no romper filas existentes, pero la Edge Function ya no la lee.
+- **Rutina — 3 avisos ligados al horario propio del bloque:** `notify_enabled` (boolean) — toggle
+  "Notificarme a la hora de inicio" en el editor. Si está activo: 20 min antes de `start_min`, 10 min
+  antes, y 10 min después de `end_min` preguntando "¿Cómo te fue?".
+- **Anti-duplicados:** `notified_stages` (jsonb, lista de qué franjas ya se avisaron) + `last_notified_date`
+  en las 3 tablas — se reinicia solo cuando cambia el día, así que nunca se repite el mismo aviso el
+  mismo día aunque el cron corra cada minuto.
 - **Servidor:** `supabase/functions/send-reminders/index.ts` (Deno Edge Function) — cron cada minuto
-  vía `pg_cron`/`pg_net`, calcula la hora en `America/Bogota`, busca ítems cuya hora coincida y no se
-  hayan notificado hoy, y despacha el push con `npm:web-push` firmado con las llaves VAPID.
-- **Pendiente del lado del usuario (no lo puede hacer el asistente):** correr el SQL nuevo, desplegar
-  la Edge Function, configurar sus secrets (`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`),
-  activar `pg_cron`+`pg_net` y programar el cron job, y agregar `VITE_VAPID_PUBLIC_KEY` en Vercel.
-  Instrucciones paso a paso en `supabase/PUSH_NOTIFICATIONS_SETUP.md`. **No verificado end-to-end**
-  (el asistente no puede confirmar que un push realmente llega a un iPhone) — pendiente que el
-  usuario lo prueba en su dispositivo tras completar esos pasos.
+  vía `pg_cron`/`pg_net`, calcula la hora en `America/Bogota`, revisa las 3 franjas fijas para
+  hábitos/tareas y las 3 franjas relativas para bloques de rutina, y despacha el push con
+  `npm:web-push` firmado con las llaves VAPID.
+- **No verificado end-to-end por el asistente** (no puede confirmar que un push realmente llega a un
+  iPhone) — pendiente que el usuario lo pruebe en su dispositivo. La infraestructura (SQL, función,
+  secrets, cron, Vercel) sí se verificó en vivo: función desplegada, `select cron.schedule(...)` devolvió
+  un job id, y el bundle de producción contiene la llave pública VAPID.
 
 ### Usuarios (solo admin)
 Lista de perfiles, activar/desactivar cuentas.

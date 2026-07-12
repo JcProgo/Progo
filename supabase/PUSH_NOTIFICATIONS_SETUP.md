@@ -1,71 +1,49 @@
-# Notificaciones push — pasos pendientes en Supabase
+# Notificaciones push — estado y pasos pendientes en Supabase
 
-El código (schema, service worker, Edge Function) ya está en el repo. Faltan 4 pasos manuales
-en el dashboard de Supabase (Project: yzpyobyflkyvpflqqljt) que Claude no puede hacer por ti.
+## Ya hecho (2026-07-11)
 
-## 1. Correr el SQL
+- SQL corrido, Edge Function `send-reminders` desplegada, secrets VAPID configurados,
+  `pg_cron`/`pg_net` activados y el cron job `send-reminders-every-minute` programado.
+- `VITE_VAPID_PUBLIC_KEY` agregada en Vercel y confirmada en el bundle de producción.
 
-Ya está en `supabase/schema.sql` (sección 7). Cópialo y córrelo en el SQL Editor como siempre.
+## Pendiente: volver a correr 2 pasos (el diseño de recordatorios cambió)
 
-## 2. Desplegar la Edge Function
+Hábitos/Tareas pasaron de "hora personalizada por ítem" a horarios fijos (8am/12pm/6pm,
+mientras no esté marcado hecho). Rutina se mantiene igual (20 min antes / 10 min antes /
+10 min después de terminar, con su propio horario). Esto cambió el schema y el código del
+servidor, así que hay que repetir 2 de los pasos que ya hiciste:
 
-El código está en `supabase/functions/send-reminders/index.ts`. Necesitas el Supabase CLI:
+### 1. Volver a correr el SQL
+
+Agrega las columnas nuevas (`reminders_enabled`, `notified_stages`). Es la sección 7 de
+`supabase/schema.sql` — cópiala completa y córrela de nuevo en el SQL Editor (idempotente,
+no rompe nada de lo que ya tienes).
+
+### 2. Volver a desplegar la Edge Function
+
+En la Terminal:
 
 ```bash
-npm install -g supabase
-supabase login
-cd /Users/juanchaverra/progo
-supabase link --project-ref yzpyobyflkyvpflqqljt
-supabase functions deploy send-reminders
+cd ~/progo
+npx supabase functions deploy send-reminders
 ```
 
-(Si prefieres no instalar el CLI, en el dashboard → Edge Functions → "Deploy a new function" puedes
-pegar el contenido de `index.ts` directamente.)
+(Ya estás logueado y con el proyecto linkeado de la vez pasada, así que este comando solo
+sube el código nuevo — no hay que repetir login ni link.)
 
-## 3. Configurar los secrets de la función
+**No hace falta tocar los secrets ni el cron job** — siguen siendo válidos tal cual.
 
-Dashboard → Edge Functions → send-reminders → Secrets (o `supabase secrets set` por CLI):
+## Cómo funciona ahora
 
-```
-VAPID_PUBLIC_KEY=BH4kqLS8urARxuB79GaFn_NCrZomvqNVjyQJcHgsjxx-V18Sle0pfDjVWmWrcRYhAycP9sTFAdDpx9i4QUjgxgw
-VAPID_PRIVATE_KEY=GxpOB33pDkmMDAmuqd31wRjExun1R4Xrkdqin3WRMC4
-VAPID_SUBJECT=mailto:juaneschaverra15@gmail.com
-```
-
-La pública ya está en `.env` del proyecto como `VITE_VAPID_PUBLIC_KEY` — agrégala también en
-Vercel (Settings → Environment Variables) para que el build de producción la incluya.
-
-`SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` los inyecta Supabase automáticamente, no hay que configurarlos.
-
-## 4. Activar pg_cron y programar el disparo cada minuto
-
-Dashboard → Database → Extensions → activa `pg_cron` y `pg_net`. Luego, en el SQL Editor:
-
-```sql
-select cron.schedule(
-  'send-reminders-every-minute',
-  '* * * * *',
-  $$
-  select net.http_post(
-    url := 'https://yzpyobyflkyvpflqqljt.supabase.co/functions/v1/send-reminders',
-    headers := jsonb_build_object(
-      'Authorization', 'Bearer TU_SERVICE_ROLE_KEY_AQUI',
-      'Content-Type', 'application/json'
-    ),
-    body := '{}'::jsonb
-  );
-  $$
-);
-```
-
-Reemplaza `TU_SERVICE_ROLE_KEY_AQUI` con la Service Role Key del proyecto (Project Settings → API).
-Esa key queda guardada en la definición del cron job — solo visible para ti desde el SQL Editor,
-nunca se comparte con el cliente.
-
-Para verificar que corre: `select * from cron.job_run_details order by start_time desc limit 5;`
+- **Hábitos/Tareas:** la campanita en cada fila es un simple on/off. Si está activada y el
+  ítem no está marcado como hecho, llega un aviso a las 8am, 12pm y 6pm (hora de Bogotá).
+  En cuanto lo marcas hecho, dejan de llegar avisos ese día.
+- **Rutina:** el toggle "Notificarme a la hora de inicio" en el editor de un bloque activa 3
+  avisos automáticos: 20 min antes de empezar, 10 min antes, y 10 min después de la hora de
+  fin preguntando cómo te fue.
 
 ## Cómo probarlo
 
-1. Abre PROGO instalada en tu iPhone, entra al menú → "Activar notificaciones" (te pedirá permiso).
-2. Ponle una hora de recordatorio a un hábito/tarea/bloque de rutina, 1-2 minutos en el futuro.
-3. Cierra la app por completo y espera — el push debería llegar aunque PROGO esté cerrada.
+Para probar rápido sin esperar a las 8am/12pm/6pm: crea un bloque de Rutina que empiece en
+~21-25 minutos y termine unos minutos después, actívale el toggle de notificar, cierra la
+app por completo y espera el primer aviso (20 min antes de esa hora de inicio).

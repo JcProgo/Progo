@@ -1232,11 +1232,11 @@ function Tareas({ tasks, setTasks, insertTaskRow, patchTaskRow, deleteTaskRow })
   const [tab, setTab] = useState("diario");
   const [newTask, setNewTask] = useState("");
   const [editingId, setEditingId] = useState(null);
-  const [reminderEditId, setReminderEditId] = useState(null);
 
-  function updateReminder(id, value) {
-    setTasks(prev => ({ ...prev, [tab]: prev[tab].map(t => t.id === id ? { ...t, reminderTime: value || null } : t) }));
-    patchTaskRow(id, { reminderTime: value || null });
+  function toggleReminder(t) {
+    const remindersEnabled = !t.remindersEnabled;
+    setTasks(prev => ({ ...prev, [tab]: prev[tab].map(x => x.id === t.id ? { ...x, remindersEnabled } : x) }));
+    patchTaskRow(t.id, { remindersEnabled });
   }
   const meta = TASK_TIMEFRAME_META[tab];
   const list = tasks[tab];
@@ -1295,18 +1295,10 @@ function Tareas({ tasks, setTasks, insertTaskRow, patchTaskRow, deleteTaskRow })
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <CheckCircle done={t.done} color={meta.color} onClick={() => toggle(t.id)} size={26} />
               <span style={{ ...fontBody, flex: 1, fontSize: 14.5, color: t.done ? COLORS.muted : COLORS.paper, textDecoration: t.done ? "line-through" : "none" }}>{t.title}</span>
-              {t.reminderTime && <span style={{ ...fontMono, fontSize: 11.5, color: meta.color }}>{t.reminderTime.slice(0, 5)}</span>}
-              <button onClick={() => setReminderEditId(reminderEditId === t.id ? null : t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: t.reminderTime ? meta.color : COLORS.muted, display: "flex", padding: 4 }}><Bell size={15} /></button>
+              <button onClick={() => toggleReminder(t)} title={t.remindersEnabled ? "Recordatorios activados (8am/12pm/6pm mientras no esté hecha)" : "Activar recordatorios"} style={{ background: "none", border: "none", cursor: "pointer", color: t.remindersEnabled ? meta.color : COLORS.muted, display: "flex", padding: 4 }}><Bell size={15} /></button>
               <button onClick={() => startEdit(t)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><Pencil size={15} /></button>
               <button onClick={() => remove(t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><X size={16} /></button>
             </div>
-            {reminderEditId === t.id && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${COLORS.border}` }}>
-                <span style={{ ...fontBody, fontSize: 12.5, color: COLORS.muted }}>Recordarme a las</span>
-                <input type="time" value={t.reminderTime ? t.reminderTime.slice(0, 5) : ""} onChange={e => updateReminder(t.id, e.target.value)} style={{ ...inputStyle(), marginBottom: 0, width: 120, padding: "6px 10px" }} />
-                {t.reminderTime && <button onClick={() => updateReminder(t.id, null)} style={{ ...fontBody, background: "none", border: "none", color: COLORS.coral, fontSize: 12, cursor: "pointer" }}>Quitar</button>}
-              </div>
-            )}
           </SoftCard>
         ))}
         {list.length === 0 && (
@@ -1342,13 +1334,13 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
   const [selectedDate, setSelectedDate] = useState(null);
   const [newHabit, setNewHabit] = useState({ name: "", toneKey: "gold" });
   const [editingId, setEditingId] = useState(null);
-  const [reminderEditId, setReminderEditId] = useState(null);
   const { cells, totalDays } = monthMatrix(CAL_YEAR, CAL_MONTH);
   const isMobile = useIsMobile();
 
-  function updateReminder(id, value) {
-    setHabits(prev => prev.map(h => h.id === id ? { ...h, reminderTime: value || null } : h));
-    patchHabitRow(id, { reminderTime: value || null });
+  function toggleReminder(h) {
+    const remindersEnabled = !h.remindersEnabled;
+    setHabits(prev => prev.map(x => x.id === h.id ? { ...x, remindersEnabled } : x));
+    patchHabitRow(h.id, { remindersEnabled });
   }
 
   function toggleDate(habitId, ds) {
@@ -1450,18 +1442,10 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
                       <Flame size={12} color={hColor} /> {streak} {streak === 1 ? "día" : "días"} de racha
                     </p>
                   </div>
-                  {h.reminderTime && <span style={{ ...fontMono, fontSize: 11.5, color: hColor }}>{h.reminderTime.slice(0, 5)}</span>}
-                  <button onClick={() => setReminderEditId(reminderEditId === h.id ? null : h.id)} style={{ background: "none", border: "none", cursor: "pointer", color: h.reminderTime ? hColor : COLORS.muted, display: "flex", padding: 4 }}><Bell size={15} /></button>
+                  <button onClick={() => toggleReminder(h)} title={h.remindersEnabled ? "Recordatorios activados (8am/12pm/6pm mientras no esté hecho hoy)" : "Activar recordatorios"} style={{ background: "none", border: "none", cursor: "pointer", color: h.remindersEnabled ? hColor : COLORS.muted, display: "flex", padding: 4 }}><Bell size={15} /></button>
                   <button onClick={() => startEditHabit(h)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><Pencil size={15} /></button>
                   <button onClick={() => removeHabit(h.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><X size={16} /></button>
                 </div>
-                {reminderEditId === h.id && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${COLORS.border}` }}>
-                    <span style={{ ...fontBody, fontSize: 12.5, color: COLORS.muted }}>Recordarme a las</span>
-                    <input type="time" value={h.reminderTime ? h.reminderTime.slice(0, 5) : ""} onChange={e => updateReminder(h.id, e.target.value)} style={{ ...inputStyle(), marginBottom: 0, width: 120, padding: "6px 10px" }} />
-                    {h.reminderTime && <button onClick={() => updateReminder(h.id, null)} style={{ ...fontBody, background: "none", border: "none", color: COLORS.coral, fontSize: 12, cursor: "pointer" }}>Quitar</button>}
-                  </div>
-                )}
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 6, marginTop: 16 }}>
                   {[1, 2, 3, 4, 5, 6, 7].map((d, i) => {
                     const ds = dateStr(d);
@@ -3134,12 +3118,12 @@ export default function App() {
       else console.error("Error cargando categorías:", catsRes.error.message);
       if (!tasksRes.error) {
         const grouped = { diario: [], semanal: [], mensual: [] };
-        (tasksRes.data || []).forEach(row => { if (grouped[row.timeframe]) grouped[row.timeframe].push({ id: row.id, title: row.title, done: row.done, reminderTime: row.reminder_time }); });
+        (tasksRes.data || []).forEach(row => { if (grouped[row.timeframe]) grouped[row.timeframe].push({ id: row.id, title: row.title, done: row.done, remindersEnabled: row.reminders_enabled }); });
         setTasks(grouped);
       } else console.error("Error cargando tareas:", tasksRes.error.message);
       if (!expensesRes.error) setExpenses((expensesRes.data || []).map(r => ({ id: r.id, date: r.date, category: r.category, description: r.description, amount: Number(r.amount) })));
       else console.error("Error cargando gastos:", expensesRes.error.message);
-      if (!habitsRes.error) setHabits((habitsRes.data || []).map(r => ({ id: r.id, name: r.name, toneKey: r.tone_key, history: r.history || {}, reminderTime: r.reminder_time })));
+      if (!habitsRes.error) setHabits((habitsRes.data || []).map(r => ({ id: r.id, name: r.name, toneKey: r.tone_key, history: r.history || {}, remindersEnabled: r.reminders_enabled })));
       else console.error("Error cargando hábitos:", habitsRes.error.message);
       if (!productsRes.error) setProducts((productsRes.data || []).map(r => ({ id: r.id, name: r.name, testDate: r.test_date, investment: Number(r.investment), sales: Number(r.sales), status: r.status, notes: r.notes })));
       else console.error("Error cargando productos:", productsRes.error.message);
@@ -3349,11 +3333,11 @@ export default function App() {
   async function insertTaskRow(timeframe, title) {
     const { data, error } = await supabase.from("tasks").insert({ user_id: session.user.id, timeframe, title, done: false }).select().single();
     if (error) { console.error("Error creando tarea:", error.message); return null; }
-    return { id: data.id, title: data.title, done: data.done, reminderTime: data.reminder_time };
+    return { id: data.id, title: data.title, done: data.done, remindersEnabled: data.reminders_enabled };
   }
   async function patchTaskRow(id, patch) {
     const dbPatch = { ...patch };
-    if ("reminderTime" in patch) { dbPatch.reminder_time = patch.reminderTime; delete dbPatch.reminderTime; }
+    if ("remindersEnabled" in patch) { dbPatch.reminders_enabled = patch.remindersEnabled; delete dbPatch.remindersEnabled; }
     const { error } = await supabase.from("tasks").update(dbPatch).eq("id", id);
     if (error) console.error("Error actualizando tarea:", error.message);
   }
@@ -3384,14 +3368,14 @@ export default function App() {
   async function insertHabitRow(name, toneKey) {
     const { data, error } = await supabase.from("habits").insert({ user_id: session.user.id, name, tone_key: toneKey, history: {} }).select().single();
     if (error) { console.error("Error creando hábito:", error.message); return null; }
-    return { id: data.id, name: data.name, toneKey: data.tone_key, history: data.history || {}, reminderTime: data.reminder_time };
+    return { id: data.id, name: data.name, toneKey: data.tone_key, history: data.history || {}, remindersEnabled: data.reminders_enabled };
   }
   async function patchHabitRow(id, patch) {
     const dbPatch = {};
     if ("name" in patch) dbPatch.name = patch.name;
     if ("toneKey" in patch) dbPatch.tone_key = patch.toneKey;
     if ("history" in patch) dbPatch.history = patch.history;
-    if ("reminderTime" in patch) dbPatch.reminder_time = patch.reminderTime;
+    if ("remindersEnabled" in patch) dbPatch.reminders_enabled = patch.remindersEnabled;
     const { error } = await supabase.from("habits").update(dbPatch).eq("id", id);
     if (error) console.error("Error actualizando hábito:", error.message);
   }

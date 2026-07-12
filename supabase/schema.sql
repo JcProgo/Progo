@@ -304,14 +304,23 @@ create index if not exists trades_user_date_idx on trades (user_id, date desc);
 -- 7. Notificaciones push — recordatorios individuales por hábito/tarea/bloque
 -- ============================================================
 
--- Hora local (America/Bogota) a la que debe sonar el recordatorio. `last_notified_date`
--- evita reenviar el mismo aviso más de una vez el mismo día (lo actualiza la Edge Function).
+-- Hábitos/tareas: on/off simple — si está activado y aún no está hecho hoy, se
+-- avisa a las 8am/12pm/6pm (horarios fijos, no personalizables por ítem).
+-- `reminder_time` quedó sin uso (se reemplazó por horarios fijos) pero se deja la
+-- columna para no romper filas existentes; no la lee la Edge Function.
 alter table habits add column if not exists reminder_time time;
+alter table habits add column if not exists reminders_enabled boolean not null default false;
 alter table habits add column if not exists last_notified_date date;
+alter table habits add column if not exists notified_stages jsonb not null default '[]'::jsonb;
 alter table tasks add column if not exists reminder_time time;
+alter table tasks add column if not exists reminders_enabled boolean not null default false;
 alter table tasks add column if not exists last_notified_date date;
+alter table tasks add column if not exists notified_stages jsonb not null default '[]'::jsonb;
+-- Rutina: si está activado, avisa 20 min antes de empezar, 10 min antes de empezar,
+-- y 10 min después de terminar (preguntando cómo le fue) — usa el horario propio del bloque.
 alter table activities add column if not exists notify_enabled boolean not null default false;
 alter table activities add column if not exists last_notified_date date;
+alter table activities add column if not exists notified_stages jsonb not null default '[]'::jsonb;
 
 -- Suscripciones push del navegador (una por dispositivo/instalación) para poder
 -- despachar el aviso aunque la app esté cerrada.
