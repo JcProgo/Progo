@@ -62,9 +62,12 @@ const DARK_THEME = {
   // Fondo del área de contenido (entre la barra superior e inferior, ambas negras):
   // el azul oscuro que tenía `card` antes del ajuste a gris neutro puro.
   surface: "#161C23",
-  card: "#16171A",
-  elevated: "#1E2023",
-  border: "#2B2D30",
+  // Las casillas (categorías, tarjetas) usan el mismo tono que `surface` a propósito
+  // — más premium se distinguen por un borde sutil + sombra (ver SoftCard), no por
+  // ser más claras que el fondo.
+  card: "#161C23",
+  elevated: "#1E2630",
+  border: "#242D36",
   paper: "#F1F2F3",
   muted: "#8B8E92",
   gold: "#B5842C",
@@ -355,10 +358,11 @@ function CheckCircle({ done, color, onClick, size = 28 }) {
   );
 }
 
-// Tarjeta suave contenedora — fondo elevado, sin borde duro, esquina 16.
+// Tarjeta suave contenedora — mismo tono que el fondo (se distingue por el borde
+// + una sombra sutil, no por ser más clara), esquina 16.
 function SoftCard({ children, style }) {
   return (
-    <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, ...style }}>
+    <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.24)", ...style }}>
       {children}
     </div>
   );
@@ -544,7 +548,7 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
             <div key={cat} onClick={() => !confirming && setSelectedCategory(cat)} style={{
               background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 12,
               padding: "14px 16px", cursor: confirming ? "default" : "pointer", transition: "border-color 0.15s",
-              position: "relative",
+              position: "relative", boxShadow: "0 1px 2px rgba(0,0,0,0.24)",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <div style={{ width: 28, height: 28, borderRadius: 8, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
