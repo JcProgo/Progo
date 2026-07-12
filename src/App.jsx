@@ -34,13 +34,14 @@ function ChartLoading({ height }) {
    PROGO — panel de negocio para comunidades de e-commerce
    by JC CREW · "Organiza. Ejecuta. Progresa."
 
-   Tokens (validated: node scripts/validate_palette.js — see dataviz skill)
-   dark   ink:      #0E1318      light  ink:      #F5F1E8
-          card:     #161C23             card:     #FFFFFF
-          elevated: #1E2630             elevated: #F0EBE0
-          border:   #242D36             border:   #E4DDCB
-          paper:    #F3EEE3             paper:    #14110D
-          muted:    #8B93A0             muted:    #726F68
+   Tokens (fondo neutro más "carbón" que la versión original — contraste de los
+   4 acentos reverificado contra el nuevo fondo, todos ≥4.2:1)
+   dark   ink:      #0A0B0D      light  ink:      #FAFAFA
+          card:     #16171A             card:     #FFFFFF
+          elevated: #1E2023             elevated: #F1F2F3
+          border:   #2B2D30             border:   #E3E4E6
+          paper:    #F1F2F3             paper:    #17181A
+          muted:    #8B8E92             muted:    #86898D
           gold:     #B5842C            gold:     #A66A1B
           teal:     #1E9E82            teal:     #0E8C6E
           coral:    #CC6248            coral:    #B03F29
@@ -57,26 +58,26 @@ if (typeof document !== "undefined" && !document.getElementById(FONT_IMPORT_ID))
 }
 
 const DARK_THEME = {
-  ink: "#0E1318",
-  card: "#161C23",
-  elevated: "#1E2630",
-  border: "#242D36",
-  paper: "#F3EEE3",
-  muted: "#8B93A0",
+  ink: "#0A0B0D",
+  card: "#16171A",
+  elevated: "#1E2023",
+  border: "#2B2D30",
+  paper: "#F1F2F3",
+  muted: "#8B8E92",
   gold: "#B5842C",
   teal: "#1E9E82",
   coral: "#CC6248",
   violet: "#7B6DD8",
-  onAccent: "#0E1318",
+  onAccent: "#0A0B0D",
 };
 
 const LIGHT_THEME = {
-  ink: "#F5F1E8",
+  ink: "#FAFAFA",
   card: "#FFFFFF",
-  elevated: "#F0EBE0",
-  border: "#E4DDCB",
-  paper: "#14110D",
-  muted: "#726F68",
+  elevated: "#F1F2F3",
+  border: "#E3E4E6",
+  paper: "#17181A",
+  muted: "#86898D",
   gold: "#A66A1B",
   teal: "#0E8C6E",
   coral: "#B03F29",
