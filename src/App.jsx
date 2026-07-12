@@ -62,12 +62,11 @@ const DARK_THEME = {
   // Fondo del área de contenido (entre la barra superior e inferior, ambas negras):
   // el azul oscuro que tenía `card` antes del ajuste a gris neutro puro.
   surface: "#161C23",
-  // Las casillas (categorías, tarjetas) usan el mismo tono que `surface` a propósito
-  // — más premium se distinguen por un borde sutil + sombra (ver SoftCard), no por
-  // ser más claras que el fondo.
-  card: "#161C23",
-  elevated: "#1E2630",
-  border: "#242D36",
+  // Las casillas (categorías, tarjetas) van negras — más oscuras que `surface` a
+  // propósito, para que se vean "recesadas" contra el azul del fondo.
+  card: "#0C0D0F",
+  elevated: "#17181B",
+  border: "#232427",
   paper: "#F1F2F3",
   muted: "#8B8E92",
   gold: "#B5842C",
