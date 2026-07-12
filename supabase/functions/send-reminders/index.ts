@@ -2,13 +2,16 @@
 //
 // Se invoca cada minuto vía pg_cron (ver supabase/PUSH_NOTIFICATIONS_SETUP.md).
 //
-// Hábitos y tareas: horarios fijos 8am / 12pm / 6pm (hora de Bogotá) — si el ítem
-// tiene `reminders_enabled` y todavía no está hecho, se avisa en cada uno de esos
-// tres momentos del día.
+// No hay interruptor por ítem: activar notificaciones una vez (botón "Activar
+// notificaciones") alcanza para que TODO reciba avisos automáticamente — el único
+// filtro real es si el usuario tiene una fila en `push_subscriptions`.
 //
-// Bloques de Rutina: usan su propio horario (`start_min`/`end_min`) — si tienen
-// `notify_enabled`, se avisa 20 min antes de empezar, 10 min antes de empezar, y
-// 10 min después de terminar (preguntando cómo le fue).
+// Hábitos y tareas: horarios fijos 8am / 12pm / 6pm (hora de Bogotá) — mientras el
+// ítem no esté marcado hecho, se avisa en cada uno de esos tres momentos del día.
+//
+// Bloques de Rutina: usan su propio horario (`start_min`/`end_min`) — se avisa 20
+// min antes de empezar, 10 min antes de empezar, y 10 min después de terminar
+// (preguntando cómo le fue).
 //
 // `notified_stages` (jsonb, lista de strings) + `last_notified_date` evitan que el
 // mismo aviso se repita dos veces el mismo día; se reinicia solo al cambiar el día.
@@ -91,8 +94,7 @@ Deno.serve(async () => {
 
   // Hábitos: recordatorio fijo mientras no esté marcado hecho hoy.
   const { data: habits } = await supabase
-    .from("habits").select("id,user_id,name,history,last_notified_date,notified_stages")
-    .eq("reminders_enabled", true);
+    .from("habits").select("id,user_id,name,history,last_notified_date,notified_stages");
   for (const h of habits ?? []) {
     if (h.history?.[date]) continue;
     const stages = stagesToday(h, date);
@@ -106,7 +108,7 @@ Deno.serve(async () => {
   // Tareas: recordatorio fijo mientras no esté marcada como hecha (done=false ya filtrado en la consulta).
   const { data: tasks } = await supabase
     .from("tasks").select("id,user_id,title,last_notified_date,notified_stages")
-    .eq("reminders_enabled", true).eq("done", false);
+    .eq("done", false);
   for (const t of tasks ?? []) {
     const stages = stagesToday(t, date);
     const slot = FIXED_SLOTS.find(s => s.min === nowMin);
@@ -118,8 +120,7 @@ Deno.serve(async () => {
 
   // Rutina: 20 min antes / 10 min antes de empezar, y 10 min después de terminar.
   const { data: activities } = await supabase
-    .from("activities").select("id,user_id,title,date,repeat,start_min,end_min,last_notified_date,notified_stages")
-    .eq("notify_enabled", true);
+    .from("activities").select("id,user_id,title,date,repeat,start_min,end_min,last_notified_date,notified_stages");
   for (const a of activities ?? []) {
     if (!occursOn(a, date)) continue;
     const stages = stagesToday(a, date);

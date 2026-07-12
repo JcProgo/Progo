@@ -1232,12 +1232,6 @@ function Tareas({ tasks, setTasks, insertTaskRow, patchTaskRow, deleteTaskRow })
   const [tab, setTab] = useState("diario");
   const [newTask, setNewTask] = useState("");
   const [editingId, setEditingId] = useState(null);
-
-  function toggleReminder(t) {
-    const remindersEnabled = !t.remindersEnabled;
-    setTasks(prev => ({ ...prev, [tab]: prev[tab].map(x => x.id === t.id ? { ...x, remindersEnabled } : x) }));
-    patchTaskRow(t.id, { remindersEnabled });
-  }
   const meta = TASK_TIMEFRAME_META[tab];
   const list = tasks[tab];
   const done = list.filter(t => t.done).length;
@@ -1295,7 +1289,6 @@ function Tareas({ tasks, setTasks, insertTaskRow, patchTaskRow, deleteTaskRow })
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <CheckCircle done={t.done} color={meta.color} onClick={() => toggle(t.id)} size={26} />
               <span style={{ ...fontBody, flex: 1, fontSize: 14.5, color: t.done ? COLORS.muted : COLORS.paper, textDecoration: t.done ? "line-through" : "none" }}>{t.title}</span>
-              <button onClick={() => toggleReminder(t)} title={t.remindersEnabled ? "Recordatorios activados (8am/12pm/6pm mientras no esté hecha)" : "Activar recordatorios"} style={{ background: "none", border: "none", cursor: "pointer", color: t.remindersEnabled ? meta.color : COLORS.muted, display: "flex", padding: 4 }}><Bell size={15} /></button>
               <button onClick={() => startEdit(t)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><Pencil size={15} /></button>
               <button onClick={() => remove(t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><X size={16} /></button>
             </div>
@@ -1336,12 +1329,6 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
   const [editingId, setEditingId] = useState(null);
   const { cells, totalDays } = monthMatrix(CAL_YEAR, CAL_MONTH);
   const isMobile = useIsMobile();
-
-  function toggleReminder(h) {
-    const remindersEnabled = !h.remindersEnabled;
-    setHabits(prev => prev.map(x => x.id === h.id ? { ...x, remindersEnabled } : x));
-    patchHabitRow(h.id, { remindersEnabled });
-  }
 
   function toggleDate(habitId, ds) {
     const h = habits.find(x => x.id === habitId);
@@ -1442,7 +1429,6 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
                       <Flame size={12} color={hColor} /> {streak} {streak === 1 ? "día" : "días"} de racha
                     </p>
                   </div>
-                  <button onClick={() => toggleReminder(h)} title={h.remindersEnabled ? "Recordatorios activados (8am/12pm/6pm mientras no esté hecho hoy)" : "Activar recordatorios"} style={{ background: "none", border: "none", cursor: "pointer", color: h.remindersEnabled ? hColor : COLORS.muted, display: "flex", padding: 4 }}><Bell size={15} /></button>
                   <button onClick={() => startEditHabit(h)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><Pencil size={15} /></button>
                   <button onClick={() => removeHabit(h.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}><X size={16} /></button>
                 </div>
@@ -2010,14 +1996,14 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
 
   function openNew(ds, min) {
     const start = Math.max(dayStart, Math.min(dayEnd - SNAP_MIN, snapToGrid(min)));
-    setEditor({ mode: "new", date: ds, title: "", start, end: Math.min(dayEnd, start + 60), type: "operativo", category: "", customColor: DEFAULT_CUSTOM_COLOR, description: "", repeat: "no", notifyEnabled: false });
+    setEditor({ mode: "new", date: ds, title: "", start, end: Math.min(dayEnd, start + 60), type: "operativo", category: "", customColor: DEFAULT_CUSTOM_COLOR, description: "", repeat: "no" });
   }
   function handleTrackClick(e, ds, px) {
     const rect = e.currentTarget.getBoundingClientRect();
     openNew(ds, dayStart + (e.clientY - rect.top) / px * 60);
   }
   function openEdit(a) {
-    setEditor({ mode: "edit", id: a.id, date: a.date, title: a.title, start: a.start, end: a.end, category: a.category || "", type: a.type || "operativo", customColor: a.customColor || DEFAULT_CUSTOM_COLOR, description: a.description || "", repeat: a.repeat || "no", source: a.source || null, notifyEnabled: a.notifyEnabled || false });
+    setEditor({ mode: "edit", id: a.id, date: a.date, title: a.title, start: a.start, end: a.end, category: a.category || "", type: a.type || "operativo", customColor: a.customColor || DEFAULT_CUSTOM_COLOR, description: a.description || "", repeat: a.repeat || "no", source: a.source || null });
   }
   // Agenda un pendiente (tarea/hábito/meta) con un toque: busca el próximo
   // espacio libre de hoy en vez de requerir arrastrarlo — más simple en
@@ -2041,7 +2027,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
   }
   async function saveEditor() {
     if (!editor.title.trim() || editor.end <= editor.start) return;
-    const data = { date: editor.date, title: editor.title.trim(), start: editor.start, end: editor.end, type: editor.type, customColor: editor.customColor, category: editor.category, description: editor.description, repeat: editor.repeat, notifyEnabled: editor.notifyEnabled };
+    const data = { date: editor.date, title: editor.title.trim(), start: editor.start, end: editor.end, type: editor.type, customColor: editor.customColor, category: editor.category, description: editor.description, repeat: editor.repeat };
     if (editor.mode === "new") {
       const created = await insertActivityRow(data);
       if (created) setActivities(prev => [...prev, created]);
@@ -2589,10 +2575,6 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
             <select value={editor.repeat} onChange={e => setEditor({ ...editor, repeat: e.target.value })} style={inputStyle()}>
               {REPEAT_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: "4px 0 14px" }}>
-              <span style={{ ...fontBody, fontSize: 13.5, color: COLORS.paper, display: "flex", alignItems: "center", gap: 6 }}><Bell size={14} color={COLORS.muted} /> Notificarme a la hora de inicio</span>
-              <AppleToggle checked={editor.notifyEnabled} onChange={() => setEditor({ ...editor, notifyEnabled: !editor.notifyEnabled })} />
-            </div>
             <label style={labelStyle}>Descripción (opcional)</label>
             <textarea value={editor.description} onChange={e => setEditor({ ...editor, description: e.target.value })} style={{ ...inputStyle(), minHeight: 60, resize: "vertical" }} />
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
@@ -3145,18 +3127,18 @@ export default function App() {
       else console.error("Error cargando categorías:", catsRes.error.message);
       if (!tasksRes.error) {
         const grouped = { diario: [], semanal: [], mensual: [] };
-        (tasksRes.data || []).forEach(row => { if (grouped[row.timeframe]) grouped[row.timeframe].push({ id: row.id, title: row.title, done: row.done, remindersEnabled: row.reminders_enabled }); });
+        (tasksRes.data || []).forEach(row => { if (grouped[row.timeframe]) grouped[row.timeframe].push({ id: row.id, title: row.title, done: row.done }); });
         setTasks(grouped);
       } else console.error("Error cargando tareas:", tasksRes.error.message);
       if (!expensesRes.error) setExpenses((expensesRes.data || []).map(r => ({ id: r.id, date: r.date, category: r.category, description: r.description, amount: Number(r.amount) })));
       else console.error("Error cargando gastos:", expensesRes.error.message);
-      if (!habitsRes.error) setHabits((habitsRes.data || []).map(r => ({ id: r.id, name: r.name, toneKey: r.tone_key, history: r.history || {}, remindersEnabled: r.reminders_enabled })));
+      if (!habitsRes.error) setHabits((habitsRes.data || []).map(r => ({ id: r.id, name: r.name, toneKey: r.tone_key, history: r.history || {} })));
       else console.error("Error cargando hábitos:", habitsRes.error.message);
       if (!productsRes.error) setProducts((productsRes.data || []).map(r => ({ id: r.id, name: r.name, testDate: r.test_date, investment: Number(r.investment), sales: Number(r.sales), status: r.status, notes: r.notes })));
       else console.error("Error cargando productos:", productsRes.error.message);
       if (!notesRes.error) setNotes((notesRes.data || []).map(r => ({ id: r.id, title: r.title, content: r.content, toneKey: r.tone_key, pinned: r.pinned, createdAt: r.created_at, updatedAt: r.updated_at })));
       else console.error("Error cargando notas:", notesRes.error.message);
-      if (!activitiesRes.error) setActivities((activitiesRes.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, start: r.start_min, end: r.end_min, type: r.type, category: r.category, customColor: r.custom_color, description: r.description, repeat: r.repeat, source: r.source, notifyEnabled: r.notify_enabled })));
+      if (!activitiesRes.error) setActivities((activitiesRes.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, start: r.start_min, end: r.end_min, type: r.type, category: r.category, customColor: r.custom_color, description: r.description, repeat: r.repeat, source: r.source })));
       else console.error("Error cargando actividades:", activitiesRes.error.message);
       if (!completionsRes.error) {
         const map = {};
@@ -3360,12 +3342,10 @@ export default function App() {
   async function insertTaskRow(timeframe, title) {
     const { data, error } = await supabase.from("tasks").insert({ user_id: session.user.id, timeframe, title, done: false }).select().single();
     if (error) { console.error("Error creando tarea:", error.message); return null; }
-    return { id: data.id, title: data.title, done: data.done, remindersEnabled: data.reminders_enabled };
+    return { id: data.id, title: data.title, done: data.done };
   }
   async function patchTaskRow(id, patch) {
-    const dbPatch = { ...patch };
-    if ("remindersEnabled" in patch) { dbPatch.reminders_enabled = patch.remindersEnabled; delete dbPatch.remindersEnabled; }
-    const { error } = await supabase.from("tasks").update(dbPatch).eq("id", id);
+    const { error } = await supabase.from("tasks").update(patch).eq("id", id);
     if (error) console.error("Error actualizando tarea:", error.message);
   }
   async function deleteTaskRow(id) {
@@ -3395,14 +3375,13 @@ export default function App() {
   async function insertHabitRow(name, toneKey) {
     const { data, error } = await supabase.from("habits").insert({ user_id: session.user.id, name, tone_key: toneKey, history: {} }).select().single();
     if (error) { console.error("Error creando hábito:", error.message); return null; }
-    return { id: data.id, name: data.name, toneKey: data.tone_key, history: data.history || {}, remindersEnabled: data.reminders_enabled };
+    return { id: data.id, name: data.name, toneKey: data.tone_key, history: data.history || {} };
   }
   async function patchHabitRow(id, patch) {
     const dbPatch = {};
     if ("name" in patch) dbPatch.name = patch.name;
     if ("toneKey" in patch) dbPatch.tone_key = patch.toneKey;
     if ("history" in patch) dbPatch.history = patch.history;
-    if ("remindersEnabled" in patch) dbPatch.reminders_enabled = patch.remindersEnabled;
     const { error } = await supabase.from("habits").update(dbPatch).eq("id", id);
     if (error) console.error("Error actualizando hábito:", error.message);
   }
@@ -3466,10 +3445,9 @@ export default function App() {
       start_min: payload.start, end_min: payload.end, type: payload.type,
       category: payload.category || "", custom_color: payload.customColor || null,
       description: payload.description || "", repeat: payload.repeat || "no", source: payload.source || null,
-      notify_enabled: payload.notifyEnabled || false,
     }).select().single();
     if (error) { console.error("Error creando actividad:", error.message); return null; }
-    return { id: data.id, date: data.date, title: data.title, start: data.start_min, end: data.end_min, type: data.type, category: data.category, customColor: data.custom_color, description: data.description, repeat: data.repeat, source: data.source, notifyEnabled: data.notify_enabled };
+    return { id: data.id, date: data.date, title: data.title, start: data.start_min, end: data.end_min, type: data.type, category: data.category, customColor: data.custom_color, description: data.description, repeat: data.repeat, source: data.source };
   }
   async function patchActivityRow(id, patch) {
     const dbPatch = {};
@@ -3482,7 +3460,6 @@ export default function App() {
     if ("customColor" in patch) dbPatch.custom_color = patch.customColor;
     if ("description" in patch) dbPatch.description = patch.description;
     if ("repeat" in patch) dbPatch.repeat = patch.repeat;
-    if ("notifyEnabled" in patch) dbPatch.notify_enabled = patch.notifyEnabled;
     const { error } = await supabase.from("activities").update(dbPatch).eq("id", id);
     if (error) console.error("Error actualizando actividad:", error.message);
   }

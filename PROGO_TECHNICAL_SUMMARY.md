@@ -155,15 +155,15 @@ hacer si se vuelve a tocar el diseño.
   auto-generado no permite escuchar `push`/`notificationclick`. `src/sw.js` hace el precaching manual
   (`precacheAndRoute(self.__WB_MANIFEST)`, `skipWaiting`, `clientsClaim`) y además maneja `push`
   (muestra la notificación) y `notificationclick` (enfoca/abre la app).
-- **Hábitos/Tareas — horarios fijos, no personalizables por ítem** (decisión explícita del usuario,
-  reemplazó un primer diseño con hora libre por ítem): `reminders_enabled` (boolean) — la campanita en
-  cada fila es un simple on/off. Si está activo y el ítem NO está marcado hecho hoy, la Edge Function
-  avisa a las 8am/12pm/6pm (hora de Bogotá), con mensaje distinto en cada franja. En cuanto se marca
-  hecho, para de avisar ese día. `reminder_time` (columna `time`) quedó en el schema sin uso — se
-  dejó por no romper filas existentes, pero la Edge Function ya no la lee.
-- **Rutina — 3 avisos ligados al horario propio del bloque:** `notify_enabled` (boolean) — toggle
-  "Notificarme a la hora de inicio" en el editor. Si está activo: 20 min antes de `start_min`, 10 min
-  antes, y 10 min después de `end_min` preguntando "¿Cómo te fue?".
+- **Sin interruptor por ítem** (decisión explícita del usuario, simplificó dos diseños anteriores: primero
+  hora libre por ítem, luego un toggle on/off por hábito/tarea/bloque): activar notificaciones una vez
+  desde el menú alcanza para que TODO reciba avisos automáticamente. Las columnas `reminders_enabled`
+  (habits/tasks) y `notify_enabled` (activities) quedaron en el schema sin uso — ni el cliente ni la
+  Edge Function las leen ya, se dejaron para no romper filas existentes.
+- **Hábitos/Tareas — horarios fijos:** 8am/12pm/6pm (hora de Bogotá), mensaje distinto en cada franja,
+  mientras el ítem no esté marcado hecho. En cuanto se marca hecho, para de avisar ese día.
+- **Rutina — 3 avisos ligados al horario propio del bloque:** 20 min antes de `start_min`, 10 min antes,
+  y 10 min después de `end_min` preguntando "¿Cómo te fue?" — para TODOS los bloques, sin toggle.
 - **Anti-duplicados:** `notified_stages` (jsonb, lista de qué franjas ya se avisaron) + `last_notified_date`
   en las 3 tablas — se reinicia solo cuando cambia el día, así que nunca se repite el mismo aviso el
   mismo día aunque el cron corra cada minuto.
@@ -171,10 +171,16 @@ hacer si se vuelve a tocar el diseño.
   vía `pg_cron`/`pg_net`, calcula la hora en `America/Bogota`, revisa las 3 franjas fijas para
   hábitos/tareas y las 3 franjas relativas para bloques de rutina, y despacha el push con
   `npm:web-push` firmado con las llaves VAPID.
-- **No verificado end-to-end por el asistente** (no puede confirmar que un push realmente llega a un
-  iPhone) — pendiente que el usuario lo pruebe en su dispositivo. La infraestructura (SQL, función,
-  secrets, cron, Vercel) sí se verificó en vivo: función desplegada, `select cron.schedule(...)` devolvió
-  un job id, y el bundle de producción contiene la llave pública VAPID.
+- **Bug real encontrado y corregido en vivo (2026-07-11):** el cron llamaba a la función con la
+  `service_role` key (un JWT válido del proyecto), pero el gateway de Edge Functions la rechazaba con
+  `401 UNAUTHORIZED_INVALID_JWT_FORMAT` de todos modos — confirmado revisando
+  `net._http_response` y verificando la key byte a byte (estaba perfectamente formada). La única
+  solución fue desplegar la función con `--no-verify-jwt`. **Cualquier redeploy futuro de esta función
+  debe incluir ese flag** o el cron vuelve a fallar en silencio — ver `supabase/PUSH_NOTIFICATIONS_SETUP.md`.
+- **Verificado en vivo por el asistente:** tras el fix, `curl` directo a la función responde `200 ok`
+  (con y sin Authorization header). **Aún no confirmado por el usuario que un push llegue realmente a
+  su iPhone** — la infraestructura completa (SQL, función, secrets, cron, Vercel) sí está verificada
+  funcionando extremo a extremo del lado del servidor.
 
 ### Usuarios (solo admin)
 Lista de perfiles, activar/desactivar cuentas.
