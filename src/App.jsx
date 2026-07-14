@@ -281,12 +281,13 @@ function ProgoWordmark({ height = 20, mode = "dark" }) {
   );
 }
 
-function StatCard({ label, value, sub, accent }) {
+function StatCard({ label, value, sub, accent, icon }) {
   return (
     <div style={{
       background: COLORS.card, border: "1px solid transparent", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
       borderRadius: 18, padding: "18px 20px", flex: 1, minWidth: 160,
     }}>
+      {icon && <div style={{ marginBottom: 12 }}><IconBadge icon={icon} color={accent || COLORS.muted} size={34} /></div>}
       <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: 0 }}>{label}</p>
       <p style={{ ...fontDisplay, color: accent || COLORS.paper, fontSize: 26, fontWeight: 700, margin: "8px 0 4px" }}>{value}</p>
       {sub && <p style={{ ...fontMono, color: COLORS.muted, fontSize: 12, margin: 0 }}>{sub}</p>}
@@ -400,10 +401,10 @@ function Resumen({ expenses, tasks, habits, products }) {
     <div>
       <SectionHeader icon={LayoutGrid} title="Resumen" subtitle="Tu negocio de un vistazo · julio 2026" accent={COLORS.gold} />
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 28 }}>
-        <StatCard label="Gastos del mes" value={fmtCOP(totalGastos)} sub={`${expenses.length} registros`} accent={COLORS.coral} />
-        <StatCard label="Tareas completadas" value={`${tareasHechas}/${tasks.diario.length}`} sub="Hoy" accent={COLORS.gold} />
-        <StatCard label="Productos ganadores" value={ganadores} sub={`de ${products.length} testeados`} accent={COLORS.teal} />
-        <StatCard label="Racha más larga" value={bestStreak ? `${bestStreak.streak} días` : "0 días"} sub={bestStreak ? bestStreak.name : "Sin hábitos aún"} accent={COLORS.violet} />
+        <StatCard icon={Wallet} label="Gastos del mes" value={fmtCOP(totalGastos)} sub={`${expenses.length} registros`} accent={COLORS.coral} />
+        <StatCard icon={CheckSquare} label="Tareas completadas" value={`${tareasHechas}/${tasks.diario.length}`} sub="Hoy" accent={COLORS.gold} />
+        <StatCard icon={Package} label="Productos ganadores" value={ganadores} sub={`de ${products.length} testeados`} accent={COLORS.teal} />
+        <StatCard icon={Flame} label="Racha más larga" value={bestStreak ? `${bestStreak.streak} días` : "0 días"} sub={bestStreak ? bestStreak.name : "Sin hábitos aún"} accent={COLORS.violet} />
       </div>
 
       <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: "20px 24px" }}>
@@ -716,10 +717,10 @@ function CategoryCalendar({ category, expenses, setExpenses, customCategories, i
       />
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 24 }}>
-        <StatCard label={`Total en ${MONTH_LABEL.split(" ")[0].toLowerCase()}`} value={fmtCOP(total)} sub={`${catExpenses.length} registros`} accent={meta.color} />
-        <StatCard label="Promedio diario" value={fmtCOP(promedioDiario)} sub={`Basado en ${totalDays} días`} accent={meta.color} />
-        <StatCard label="Días con gastos" value={`${daysConGasto} días`} sub={`${((daysConGasto / totalDays) * 100).toFixed(1)}% del mes`} accent={meta.color} />
-        <StatCard label="Mayor gasto" value={mayorGasto ? fmtCOP(mayorGasto.amount) : fmtCOP(0)} sub={mayorGasto ? mayorGasto.date : "—"} accent={meta.color} />
+        <StatCard icon={Wallet} label={`Total en ${MONTH_LABEL.split(" ")[0].toLowerCase()}`} value={fmtCOP(total)} sub={`${catExpenses.length} registros`} accent={meta.color} />
+        <StatCard icon={Activity} label="Promedio diario" value={fmtCOP(promedioDiario)} sub={`Basado en ${totalDays} días`} accent={meta.color} />
+        <StatCard icon={Calendar} label="Días con gastos" value={`${daysConGasto} días`} sub={`${((daysConGasto / totalDays) * 100).toFixed(1)}% del mes`} accent={meta.color} />
+        <StatCard icon={TrendingUp} label="Mayor gasto" value={mayorGasto ? fmtCOP(mayorGasto.amount) : fmtCOP(0)} sub={mayorGasto ? mayorGasto.date : "—"} accent={meta.color} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.7fr 1fr", gap: 20, alignItems: "start" }}>
@@ -1142,11 +1143,11 @@ function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, egresos,
       {notice && <p style={{ ...fontBody, color: COLORS.teal, fontSize: 13, margin: "0 0 14px" }}>{notice}</p>}
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 24 }}>
-        <StatCard label="Ingresos totales" value={fmtCOP(totalIncome)} sub={`${incomes.length} registros`} accent={COLORS.teal} />
-        <StatCard label="Egresos totales" value={fmtCOP(totalEgresos)} sub={`${egresos.length} registros`} accent={COLORS.coral} />
-        <StatCard label="Saldo actual" value={fmtCOP(saldoActual)} sub="Ingresos - egresos" accent={COLORS.gold} />
-        <StatCard label="Ingresos del mes" value={fmtCOP(monthIncome)} sub={monthPrefix} accent={COLORS.teal} />
-        <StatCard label="Egresos del mes" value={fmtCOP(monthEgresos)} sub={monthPrefix} accent={COLORS.coral} />
+        <StatCard icon={TrendingUp} label="Ingresos totales" value={fmtCOP(totalIncome)} sub={`${incomes.length} registros`} accent={COLORS.teal} />
+        <StatCard icon={TrendingDown} label="Egresos totales" value={fmtCOP(totalEgresos)} sub={`${egresos.length} registros`} accent={COLORS.coral} />
+        <StatCard icon={PiggyBank} label="Saldo actual" value={fmtCOP(saldoActual)} sub="Ingresos - egresos" accent={COLORS.gold} />
+        <StatCard icon={TrendingUp} label="Ingresos del mes" value={fmtCOP(monthIncome)} sub={monthPrefix} accent={COLORS.teal} />
+        <StatCard icon={TrendingDown} label="Egresos del mes" value={fmtCOP(monthEgresos)} sub={monthPrefix} accent={COLORS.coral} />
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -1398,9 +1399,9 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
       <SectionHeader icon={Flame} title="Hábitos" subtitle="Tu bitácora de constancia" accent={COLORS.teal} />
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 24 }}>
-        <StatCard label="Eficacia general" value={`${eficacia}%`} sub={`${totalDone} de ${totalPossible} días posibles`} accent={COLORS.teal} />
-        <StatCard label="Hábito más constante" value={bestHabit?.name || "—"} sub={bestHabit ? `${bestHabit.count} días cumplidos` : ""} accent={COLORS.gold} />
-        <StatCard label="Días perfectos" value={diasPerfectos} sub={`de ${totalDays} días, todos los hábitos`} accent={COLORS.violet} />
+        <StatCard icon={Activity} label="Eficacia general" value={`${eficacia}%`} sub={`${totalDone} de ${totalPossible} días posibles`} accent={COLORS.teal} />
+        <StatCard icon={Flame} label="Hábito más constante" value={bestHabit?.name || "—"} sub={bestHabit ? `${bestHabit.count} días cumplidos` : ""} accent={COLORS.gold} />
+        <StatCard icon={Check} label="Días perfectos" value={diasPerfectos} sub={`de ${totalDays} días, todos los hábitos`} accent={COLORS.violet} />
       </div>
 
       <SoftCard style={{ padding: 18, marginBottom: 16 }}>
@@ -2701,11 +2702,11 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
       </div>
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 24 }}>
-        <StatCard label="PNL del mes" value={fmtUSD(monthPnl)} sub={`${monthTrades.length} operaciones`} accent={monthPnl >= 0 ? COLORS.teal : COLORS.coral} />
-        <StatCard label="Retorno del mes" value={fmtPct(accountSize ? (monthPnl / accountSize) * 100 : 0)} sub={`sobre cuenta de ${fmtUSD(accountSize)}`} accent={monthPnl >= 0 ? COLORS.teal : COLORS.coral} />
-        <StatCard label="% de aciertos" value={`${monthWinRate}%`} sub={`${monthWins} de ${monthTrades.length} operaciones`} accent={COLORS.gold} />
-        <StatCard label="Mejor día" value={bestDay ? fmtUSD(bestDay[1]) : "—"} sub={bestDay ? bestDay[0] : "Sin datos"} accent={COLORS.teal} />
-        <StatCard label="Peor día" value={worstDay ? fmtUSD(worstDay[1]) : "—"} sub={worstDay ? worstDay[0] : "Sin datos"} accent={COLORS.coral} />
+        <StatCard icon={monthPnl >= 0 ? TrendingUp : TrendingDown} label="PNL del mes" value={fmtUSD(monthPnl)} sub={`${monthTrades.length} operaciones`} accent={monthPnl >= 0 ? COLORS.teal : COLORS.coral} />
+        <StatCard icon={Target} label="Retorno del mes" value={fmtPct(accountSize ? (monthPnl / accountSize) * 100 : 0)} sub={`sobre cuenta de ${fmtUSD(accountSize)}`} accent={monthPnl >= 0 ? COLORS.teal : COLORS.coral} />
+        <StatCard icon={Check} label="% de aciertos" value={`${monthWinRate}%`} sub={`${monthWins} de ${monthTrades.length} operaciones`} accent={COLORS.gold} />
+        <StatCard icon={TrendingUp} label="Mejor día" value={bestDay ? fmtUSD(bestDay[1]) : "—"} sub={bestDay ? bestDay[0] : "Sin datos"} accent={COLORS.teal} />
+        <StatCard icon={TrendingDown} label="Peor día" value={worstDay ? fmtUSD(worstDay[1]) : "—"} sub={worstDay ? worstDay[0] : "Sin datos"} accent={COLORS.coral} />
       </div>
 
       <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 20 }}>
