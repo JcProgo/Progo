@@ -3527,9 +3527,9 @@ export default function App() {
         return (
           <button key={item.key} onClick={() => selectView(item.key)} style={{
             ...fontBody, display: "flex", alignItems: "center", gap: 10, width: "100%",
-            padding: "10px 12px", borderRadius: 9, marginBottom: 4, border: "none", cursor: "pointer",
-            background: active ? COLORS.brand + "1c" : "transparent",
-            color: active ? COLORS.brand : COLORS.muted, fontSize: 13.5, fontWeight: active ? 600 : 500,
+            padding: "10px 12px", borderRadius: 10, marginBottom: 4, border: "none", cursor: "pointer",
+            background: active ? COLORS.paper : "transparent",
+            color: active ? COLORS.ink : COLORS.muted, fontSize: 13.5, fontWeight: active ? 600 : 500,
             textAlign: "left",
           }}>
             <Icon size={17} />
@@ -3580,15 +3580,20 @@ export default function App() {
     </button>
   );
 
-  const brand = size => (
+  const brand = (size, showTagline) => (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <div style={{ width: size, height: size, borderRadius: size >= 34 ? 9 : 8, overflow: "hidden", flexShrink: 0, display: "flex" }}><ProgoMark size={size} mode={mode} /></div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <ProgoWordmark height={size >= 34 ? 16 : 14} mode={mode} />
-        {isAdmin && (
-          <span style={{ ...fontMono, display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: COLORS.gold, background: COLORS.gold + "1c", padding: "2px 6px", borderRadius: 20, letterSpacing: 0.3 }}>
-            <ShieldCheck size={10} /> FUNDADOR
-          </span>
+      <div style={{ display: "flex", flexDirection: "column", gap: showTagline ? 2 : 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <ProgoWordmark height={size >= 34 ? 16 : 14} mode={mode} />
+          {isAdmin && (
+            <span style={{ ...fontMono, display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: COLORS.brand, background: COLORS.brand + "1c", padding: "2px 6px", borderRadius: 20, letterSpacing: 0.3 }}>
+              <ShieldCheck size={10} /> FUNDADOR
+            </span>
+          )}
+        </div>
+        {showTagline && (
+          <span style={{ ...fontMono, fontSize: 9.5, fontWeight: 600, color: COLORS.muted, letterSpacing: 1.1, textTransform: "uppercase" }}>Negocio &amp; productividad</span>
         )}
       </div>
     </div>
@@ -3630,7 +3635,7 @@ export default function App() {
         </>
       ) : (
         <div style={{ width: 240, background: COLORS.card, borderRight: `1px solid ${COLORS.border}`, padding: "24px 16px", display: "flex", flexDirection: "column", flexShrink: 0, overflowY: "auto" }}>
-          <div style={{ padding: "0 8px", marginBottom: 32 }}>{brand(34)}</div>
+          <div style={{ padding: "0 8px", marginBottom: 32 }}>{brand(34, true)}</div>
           {navItems}
           <div style={{ marginTop: "auto", paddingTop: 16 }}>{notifButton}{signOutButton}</div>
         </div>
