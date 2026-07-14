@@ -127,7 +127,7 @@ function AppleToggle({ checked, onChange }) {
   return (
     <button onClick={onChange} role="switch" aria-checked={checked} style={{
       width: 46, height: 26, borderRadius: 13, border: "none", cursor: "pointer", padding: 3,
-      background: checked ? COLORS.teal : COLORS.border, display: "flex", justifyContent: checked ? "flex-end" : "flex-start",
+      background: checked ? COLORS.brand : COLORS.border, display: "flex", justifyContent: checked ? "flex-end" : "flex-start",
       transition: "background 0.15s ease",
     }}>
       <div style={{
@@ -286,7 +286,7 @@ function StatCard({ label, value, sub, accent }) {
   return (
     <div style={{
       background: COLORS.card, border: "1px solid transparent", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-      borderRadius: 14, padding: "18px 20px", flex: 1, minWidth: 160,
+      borderRadius: 18, padding: "18px 20px", flex: 1, minWidth: 160,
     }}>
       <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: 0 }}>{label}</p>
       <p style={{ ...fontDisplay, color: accent || COLORS.paper, fontSize: 26, fontWeight: 700, margin: "8px 0 4px" }}>{value}</p>
@@ -320,7 +320,7 @@ function PrimaryButton({ children, onClick, accent = COLORS.gold }) {
     <button onClick={onClick} style={{
       ...fontBody, display: "flex", alignItems: "center", gap: 6,
       background: accent, color: COLORS.onAccent, fontWeight: 600, fontSize: 14,
-      border: "none", borderRadius: 10, padding: "10px 16px", cursor: "pointer",
+      border: "none", borderRadius: 999, padding: "10px 18px", cursor: "pointer",
     }}>
       {children}
     </button>
@@ -367,7 +367,7 @@ function CheckCircle({ done, color, onClick, size = 28 }) {
 // + una sombra sutil, no por ser más clara), esquina 16.
 function SoftCard({ children, style }) {
   return (
-    <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.24)", ...style }}>
+    <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, boxShadow: "0 1px 2px rgba(0,0,0,0.24)", ...style }}>
       {children}
     </div>
   );
@@ -407,7 +407,7 @@ function Resumen({ expenses, tasks, habits, products }) {
         <StatCard label="Racha más larga" value={bestStreak ? `${bestStreak.streak} días` : "0 días"} sub={bestStreak ? bestStreak.name : "Sin hábitos aún"} accent={COLORS.violet} />
       </div>
 
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "20px 24px" }}>
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: "20px 24px" }}>
         <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Gastos por día</p>
         <div style={{ height: 220 }}>
           {!recharts ? <ChartLoading height={220} /> : (
@@ -501,7 +501,7 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
         icon={Wallet} title="Gastos" subtitle="Administra y controla tus gastos por categoría" accent={COLORS.coral}
       />
 
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18, marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
           <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: 0 }}>Ingreso mensual</p>
           {!editingIncome && (
@@ -551,7 +551,7 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
           const confirming = confirmDeleteCatId === cat;
           return (
             <div key={cat} onClick={() => !confirming && setSelectedCategory(cat)} style={{
-              background: COLORS.card, border: "1px solid transparent", borderRadius: 14,
+              background: COLORS.card, border: "1px solid transparent", borderRadius: 18,
               padding: "16px", cursor: confirming ? "default" : "pointer", transition: "border-color 0.15s",
               position: "relative", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
             }}>
@@ -616,7 +616,7 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
       )}
 
       {addingCategory && (
-        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, marginBottom: 24 }}>
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18, marginBottom: 24 }}>
           <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Nueva categoría personalizada</p>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: catError ? 8 : 0 }}>
             <input value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })}
@@ -631,7 +631,7 @@ function Gastos({ expenses, setExpenses, monthlyIncome, updateMonthlyIncome, cus
         </div>
       )}
 
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between" }}>
           <span style={{ ...fontBody, color: COLORS.paper, fontWeight: 600, fontSize: 15 }}>Gastos recientes</span>
           <span style={{ ...fontMono, color: COLORS.coral, fontWeight: 600, fontSize: 15 }}>{fmtCOP(total)}</span>
@@ -724,7 +724,7 @@ function CategoryCalendar({ category, expenses, setExpenses, customCategories, i
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.7fr 1fr", gap: 20, alignItems: "start" }}>
-        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, overflowX: "auto" }}>
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18, overflowX: "auto" }}>
           <div style={{ minWidth: 440 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 8 }}>
             {WEEKDAY_LABELS.map(w => (
@@ -758,7 +758,7 @@ function CategoryCalendar({ category, expenses, setExpenses, customCategories, i
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 20 }}>
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 20 }}>
             <p style={{ ...fontBody, color: COLORS.paper, fontWeight: 600, fontSize: 15, margin: "0 0 16px" }}>{editingId ? "Editar gasto" : "Agregar gasto"}</p>
             <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12 }}>Fecha</label>
             <input type="date" value={selectedDate || ""} onChange={e => setSelectedDate(e.target.value)} style={inputStyle()} />
@@ -772,7 +772,7 @@ function CategoryCalendar({ category, expenses, setExpenses, customCategories, i
             </div>
           </div>
 
-          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 20 }}>
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
               <span style={{ ...fontBody, color: COLORS.paper, fontWeight: 600, fontSize: 14 }}>
                 {selectedDate ? `Gastos del ${selectedDate.slice(8, 10)}/${selectedDate.slice(5, 7)}` : "Selecciona un día"}
@@ -810,7 +810,7 @@ function inputStyle() {
     // fontSize 16 a propósito: por debajo de eso, Safari en iOS hace zoom
     // automático al enfocar el campo.
     ...fontBody, width: "100%", background: COLORS.elevated, border: `1px solid ${COLORS.border}`,
-    borderRadius: 8, padding: "9px 12px", color: COLORS.paper, fontSize: 16, marginBottom: 12,
+    borderRadius: 12, padding: "9px 12px", color: COLORS.paper, fontSize: 16, marginBottom: 12,
     outline: "none", boxSizing: "border-box",
   };
 }
@@ -1011,7 +1011,7 @@ function Metas({ goals, setGoals, incomes, insertGoalRow, patchGoalRow, deleteGo
             const applicable = isFinancial ? computeFinancialApplicable(incomes, g) : 0;
             const pct = isFinancial ? computeFinancialProgress(incomes, g) / 100 : (g.target ? g.progress / g.target : 0);
             return (
-              <div key={g.id} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, display: "flex", gap: 16, alignItems: "center" }}>
+              <div key={g.id} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18, display: "flex", gap: 16, alignItems: "center" }}>
                 <div style={{ position: "relative", width: 64, height: 64, flexShrink: 0 }}>
                   <Ring pct={pct} color={meta.color} />
                   <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1160,7 +1160,7 @@ function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, egresos,
         ))}
       </div>
 
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, overflow: "hidden" }}>
         {sorted.length === 0 ? (
           <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, padding: 20 }}>No hay {meta.label.toLowerCase()} registrados todavía.</p>
         ) : (
@@ -1472,7 +1472,7 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.3fr 1fr", gap: 20, alignItems: "start" }}>
-        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18 }}>
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18 }}>
           <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Calendario de cumplimiento · {MONTH_LABEL}</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 8 }}>
             {WEEKDAY_LABELS.map(w => (
@@ -1508,7 +1508,7 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18 }}>
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18 }}>
             <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>% de hábitos cumplidos por día</p>
             <div style={{ height: 160 }}>
               {!recharts ? <ChartLoading height={160} /> : (
@@ -1531,7 +1531,7 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
             </div>
           </div>
 
-          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18 }}>
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18 }}>
             <p style={{ ...fontBody, color: COLORS.paper, fontWeight: 600, fontSize: 14, margin: "0 0 10px" }}>
               {selectedDate ? `Hábitos del ${selectedDate.slice(8, 10)}/${selectedDate.slice(5, 7)}` : "Selecciona un día del calendario"}
             </p>
@@ -1591,7 +1591,7 @@ function Productos({ products, setProducts, insertProductRow, patchProductRow, d
     <div>
       <SectionHeader icon={Package} title="Productos testeados" subtitle={`${products.length} productos en el historial`} accent={COLORS.teal} />
 
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, marginBottom: 20 }}>
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18, marginBottom: 20 }}>
         <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>{editingId ? "Editar producto" : "Agregar producto"}</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
           <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Nombre del producto" style={{ ...inputStyle(), marginBottom: 0 }} />
@@ -1606,7 +1606,7 @@ function Productos({ products, setProducts, insertProductRow, patchProductRow, d
         </div>
       </div>
 
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, overflow: "hidden" }}>
         {products.length === 0 ? (
           <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, padding: 20 }}>No hay productos testeados todavía.</p>
         ) : (
@@ -2373,7 +2373,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
           )}
 
           {!isMobile && (
-            <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "16px 16px 22px 0", display: "flex" }}>
+            <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: "16px 16px 22px 0", display: "flex" }}>
               <div style={{ width: 76, position: "relative", height: trackH(PX_HOUR_DAY), flexShrink: 0 }}>
                 {gutterLabels(PX_HOUR_DAY)}
               </div>
@@ -2389,7 +2389,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
           )}
 
           {showResumenSection && (
-          <div style={{ marginTop: isMobile ? 0 : 20, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 22 }}>
+          <div style={{ marginTop: isMobile ? 0 : 20, background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 22 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14, marginBottom: 18 }}>
               <div>
                 <h2 style={{ ...fontDisplay, color: COLORS.paper, fontSize: 18, fontWeight: 700, margin: 0 }}>Cierre del día</h2>
@@ -2493,7 +2493,7 @@ function Rutina({ activities, setActivities, completions, setCompletions, journa
       )}
 
       {!isMobile && viewMode === "semana" && (
-        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "14px 14px 22px 0", overflowX: "auto" }}>
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: "14px 14px 22px 0", overflowX: "auto" }}>
           <div style={{ minWidth: 706 }}>
           <div style={{ display: "flex", marginBottom: 6 }}>
             <div style={{ width: 76, flexShrink: 0 }} />
@@ -2685,7 +2685,7 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
     <div>
       <SectionHeader icon={TrendingUp} title="Trading" subtitle="Tu desempeño diario en el mercado" accent={COLORS.teal} />
 
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 18, marginBottom: 20, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18, marginBottom: 20, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
         <span style={{ ...fontBody, color: COLORS.muted, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>Tamaño de cuenta</span>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {ACCOUNT_PRESETS.map(p => (
@@ -2709,7 +2709,7 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
         <StatCard label="Peor día" value={worstDay ? fmtUSD(worstDay[1]) : "—"} sub={worstDay ? worstDay[0] : "Sin datos"} accent={COLORS.coral} />
       </div>
 
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 20 }}>
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 20 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
           <div style={{ display: "flex", borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
             <button onClick={() => setTab("pnl")} style={pillBtnStyle(tab === "pnl")}>PNL</button>
@@ -2955,7 +2955,7 @@ function Usuarios({ myId }) {
     <div>
       <SectionHeader icon={Users} title="Usuarios" subtitle="Cuentas registradas en PROGO" accent={COLORS.violet} />
       {error && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 13, margin: "0 0 16px" }}>{error}</p>}
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <div style={{ minWidth: 620 }}>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 16, padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
