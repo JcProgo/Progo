@@ -59,11 +59,10 @@ if (typeof document !== "undefined" && !document.getElementById(FONT_IMPORT_ID))
 
 const DARK_THEME = {
   ink: "#0A0B0D",
-  // Fondo del área de contenido (entre la barra superior e inferior, ambas negras):
-  // el azul oscuro que tenía `card` antes del ajuste a gris neutro puro.
-  surface: "#161C23",
-  // Las casillas (categorías, tarjetas) van negras — más oscuras que `surface` a
-  // propósito, para que se vean "recesadas" contra el azul del fondo.
+  // Negro puro en toda la app (barras, fondo del contenido) — estilo Lucra, sin tinte azul.
+  surface: "#0A0B0D",
+  // Las casillas (categorías, tarjetas) un toque más oscuras que `surface`, se
+  // distinguen por sombra, no por ser más claras.
   card: "#0C0D0F",
   elevated: "#17181B",
   // Casi invisible a propósito — las tarjetas se distinguen por sombra, no por borde duro.
