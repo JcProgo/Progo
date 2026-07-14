@@ -377,8 +377,9 @@ function SoftCard({ children, style }) {
    RESUMEN
 --------------------------------------------------------- */
 
-function Resumen({ expenses, tasks, habits, products }) {
+function Resumen({ expenses, tasks, habits, products, customCategories }) {
   const recharts = useRecharts();
+  const isMobile = useIsMobile();
   const totalGastos = expenses.reduce((a, e) => a + e.amount, 0);
   const tareasHechas = tasks.diario.filter(t => t.done).length;
   const ganadores = products.filter(p => p.status === "Ganador").length;
@@ -397,35 +398,85 @@ function Resumen({ expenses, tasks, habits, products }) {
     }));
   }, [expenses]);
 
+  const recentExpenses = useMemo(
+    () => [...expenses].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id).slice(0, 4),
+    [expenses]
+  );
+  const pendingToday = tasks.diario.filter(t => !t.done).slice(0, 4);
+
   return (
     <div>
       <SectionHeader icon={LayoutGrid} title="Resumen" subtitle="Tu negocio de un vistazo · julio 2026" accent={COLORS.gold} />
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 28 }}>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
         <StatCard icon={Wallet} label="Gastos del mes" value={fmtCOP(totalGastos)} sub={`${expenses.length} registros`} accent={COLORS.coral} />
         <StatCard icon={CheckSquare} label="Tareas completadas" value={`${tareasHechas}/${tasks.diario.length}`} sub="Hoy" accent={COLORS.gold} />
         <StatCard icon={Package} label="Productos ganadores" value={ganadores} sub={`de ${products.length} testeados`} accent={COLORS.teal} />
         <StatCard icon={Flame} label="Racha más larga" value={bestStreak ? `${bestStreak.streak} días` : "0 días"} sub={bestStreak ? bestStreak.name : "Sin hábitos aún"} accent={COLORS.violet} />
       </div>
 
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: "20px 24px" }}>
-        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Gastos por día</p>
-        <div style={{ height: 220 }}>
-          {!recharts ? <ChartLoading height={220} /> : (
-            <recharts.ResponsiveContainer width="100%" height="100%">
-              <recharts.BarChart data={chartData}>
-                <recharts.CartesianGrid stroke={COLORS.border} vertical={false} />
-                <recharts.XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={{ stroke: COLORS.border }} tickLine={false} />
-                <recharts.YAxis tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} width={70} tickFormatter={v => fmtCOP(v)} />
-                <recharts.Tooltip
-                  cursor={false}
-                  contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: "'Inter', sans-serif", fontSize: 13 }}
-                  formatter={v => fmtCOP(v)}
-                  labelStyle={{ color: COLORS.muted }}
-                />
-                <recharts.Bar dataKey="amount" fill={COLORS.gold} radius={[4, 4, 0, 0]} activeBar={{ fill: COLORS.gold }} />
-              </recharts.BarChart>
-            </recharts.ResponsiveContainer>
-          )}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.7fr 1fr", gap: 14, alignItems: "start" }}>
+        <div style={{ background: COLORS.card, border: "1px solid transparent", boxShadow: "0 1px 3px rgba(0,0,0,0.3)", borderRadius: 18, padding: "20px 24px" }}>
+          <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Gastos por día</p>
+          <div style={{ height: 220 }}>
+            {!recharts ? <ChartLoading height={220} /> : (
+              <recharts.ResponsiveContainer width="100%" height="100%">
+                <recharts.BarChart data={chartData} barSize={18}>
+                  <recharts.CartesianGrid stroke={COLORS.border} vertical={false} />
+                  <recharts.XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={{ stroke: COLORS.border }} tickLine={false} />
+                  <recharts.YAxis tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} width={70} tickFormatter={v => fmtCOP(v)} />
+                  <recharts.Tooltip
+                    cursor={false}
+                    contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: "'Inter', sans-serif", fontSize: 13 }}
+                    formatter={v => fmtCOP(v)}
+                    labelStyle={{ color: COLORS.muted }}
+                  />
+                  <recharts.Bar dataKey="amount" fill={COLORS.gold} radius={[4, 4, 0, 0]} activeBar={{ fill: COLORS.gold }} />
+                </recharts.BarChart>
+              </recharts.ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ background: COLORS.card, border: "1px solid transparent", boxShadow: "0 1px 3px rgba(0,0,0,0.3)", borderRadius: 18, padding: 18 }}>
+            <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Gastos recientes</p>
+            {recentExpenses.length === 0 ? (
+              <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: 0 }}>Sin gastos todavía.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {recentExpenses.map(e => {
+                  const meta = getCategoryMeta(e.category, customCategories);
+                  const Icon = meta.icon;
+                  return (
+                    <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <IconBadge icon={Icon} color={meta.color} size={30} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ ...fontBody, color: COLORS.paper, fontSize: 13, fontWeight: 500, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.description}</p>
+                        <p style={{ ...fontMono, color: COLORS.muted, fontSize: 11, margin: "1px 0 0" }}>{e.date}</p>
+                      </div>
+                      <span style={{ ...fontMono, color: COLORS.coral, fontSize: 12.5, fontWeight: 600, flexShrink: 0 }}>{fmtCOP(e.amount)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: COLORS.card, border: "1px solid transparent", boxShadow: "0 1px 3px rgba(0,0,0,0.3)", borderRadius: 18, padding: 18 }}>
+            <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, margin: "0 0 12px" }}>Pendientes de hoy</p>
+            {pendingToday.length === 0 ? (
+              <p style={{ ...fontBody, color: COLORS.teal, fontSize: 13, margin: 0 }}>Ya completaste todas tus tareas de hoy.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {pendingToday.map(t => (
+                  <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: COLORS.gold, flexShrink: 0 }} />
+                    <p style={{ ...fontBody, color: COLORS.paper, fontSize: 13, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -3663,7 +3714,7 @@ export default function App() {
             </div>
           </div>
         )}
-        {view === "resumen" && <Resumen expenses={expenses} tasks={tasks} habits={habits} products={products} />}
+        {view === "resumen" && <Resumen expenses={expenses} tasks={tasks} habits={habits} products={products} customCategories={customCategories} />}
         {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} addCustomCategory={addCustomCategory} deleteCustomCategory={deleteCustomCategory} hiddenCategories={profile.hidden_categories || []} hideDefaultCategory={hideDefaultCategory} unhideDefaultCategory={unhideDefaultCategory} insertExpenseRow={insertExpenseRow} patchExpenseRow={patchExpenseRow} deleteExpenseRow={deleteExpenseRow} />}
         {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} egresos={egresos} addEgreso={addEgreso} editEgreso={editEgreso} deleteEgreso={deleteEgreso} financeLoading={financeLoading} />}
         {view === "metas" && <Metas goals={goals} setGoals={setGoals} incomes={incomes} insertGoalRow={insertGoalRow} patchGoalRow={patchGoalRow} deleteGoalRow={deleteGoalRow} financeLoading={financeLoading} />}
