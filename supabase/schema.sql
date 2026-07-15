@@ -86,23 +86,44 @@ create trigger protect_admin_only_columns
   before update on profiles
   for each row execute function protect_admin_only_profile_columns();
 
+-- Lista de correos que el admin invitó a entrar gratis (panel Usuarios ->
+-- "Invitar amigos"), ANTES de que esa persona se haya registrado siquiera. Cuando el
+-- correo invitado se registra, handle_new_user() (abajo) lo detecta acá y le marca
+-- free_access=true automáticamente. Si la persona ya tenía cuenta, el cliente
+-- actualiza free_access directo sobre su fila existente (no pasa por esta tabla).
+create table if not exists invited_emails (
+  email text primary key,
+  invited_by uuid references auth.users(id),
+  created_at timestamptz not null default now()
+);
+
+alter table invited_emails enable row level security;
+drop policy if exists "admin manages invites" on invited_emails;
+create policy "admin manages invites" on invited_emails
+  for all using (is_admin()) with check (is_admin());
+
 -- Crea automáticamente la fila de perfil cuando alguien se registra.
 -- El correo de JC CREW (juaneschaverra15@gmail.com) queda marcado 'admin' automáticamente.
 -- grandfathered=false explícito: las cuentas nuevas de aquí en adelante SÍ deben pagar
--- (las que ya existían quedaron en true por el default de la columna, arriba).
+-- (las que ya existían quedaron en true por el default de la columna, arriba) — salvo
+-- que el correo esté en invited_emails, en cuyo caso entra gratis desde el día uno.
 create or replace function handle_new_user()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  was_invited boolean;
 begin
-  insert into public.profiles (id, email, role, grandfathered)
+  select exists(select 1 from invited_emails where email = lower(new.email)) into was_invited;
+  insert into public.profiles (id, email, role, grandfathered, free_access)
   values (
     new.id,
     new.email,
     case when new.email = 'juaneschaverra15@gmail.com' then 'admin' else 'user' end,
-    false
+    false,
+    coalesce(was_invited, false)
   );
   return new;
 end;

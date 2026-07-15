@@ -5,7 +5,7 @@ import {
   Plus, Trash2, ChevronRight, TrendingUp, TrendingDown, Coffee,
   UtensilsCrossed, ShoppingCart, Car, Home as HomeIcon, Zap,
   HeartPulse, ShoppingBag, Trash, GraduationCap, MoreHorizontal, Check,
-  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, LogOut, Users, ShieldCheck, Pencil, PiggyBank, Tag, StickyNote, Pin, ChevronLeft, Bell, BellOff, BellRing
+  X, Calendar, Sun, Moon, Brain, Briefcase, Activity, LogOut, Users, ShieldCheck, Pencil, PiggyBank, Tag, StickyNote, Pin, ChevronLeft, Bell, BellOff, BellRing, UserPlus
 } from "lucide-react";
 
 // recharts (~200KB+ del bundle) se carga de forma perezosa vía import() dinámico
@@ -3149,15 +3149,21 @@ function accessLabel(row, sub) {
 function Usuarios({ myId }) {
   const [rows, setRows] = useState([]);
   const [subsByUser, setSubsByUser] = useState({});
+  const [invites, setInvites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState("");
+  const [inviteNotice, setInviteNotice] = useState("");
 
   function load() {
     setLoading(true);
     Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("subscriptions").select("*"),
-    ]).then(([profilesRes, subsRes]) => {
+      supabase.from("invited_emails").select("*").order("created_at", { ascending: false }),
+    ]).then(([profilesRes, subsRes, invitesRes]) => {
       if (profilesRes.error) setError(profilesRes.error.message);
       else setRows(profilesRes.data || []);
       if (!subsRes.error) {
@@ -3165,10 +3171,48 @@ function Usuarios({ myId }) {
         for (const s of subsRes.data || []) map[s.user_id] = s;
         setSubsByUser(map);
       }
+      if (!invitesRes.error) setInvites(invitesRes.data || []);
       setLoading(false);
     });
   }
   useEffect(load, []);
+
+  async function inviteFriend(e) {
+    e.preventDefault();
+    const email = inviteEmail.trim().toLowerCase();
+    setInviteError(""); setInviteNotice("");
+    if (!email || !email.includes("@")) { setInviteError("Ingresa un correo válido."); return; }
+    setInviteBusy(true);
+    // Si la persona ya tiene cuenta, le damos acceso gratis de una vez sobre su fila
+    // existente — la tabla invited_emails solo hace falta para quien todavía no se
+    // ha registrado (handle_new_user() la consulta al crear el perfil).
+    const existing = rows.find(r => r.email.toLowerCase() === email);
+    if (existing) {
+      const { error: updateError } = await supabase.from("profiles").update({ free_access: true }).eq("id", existing.id);
+      if (updateError) { setInviteError(updateError.message); setInviteBusy(false); return; }
+      setRows(prev => prev.map(r => r.id === existing.id ? { ...r, free_access: true } : r));
+      setInviteNotice(`${email} ya tenía cuenta — le di acceso gratis.`);
+      setInviteEmail("");
+      setInviteBusy(false);
+      return;
+    }
+    const { data, error: inviteErr } = await supabase.from("invited_emails")
+      .insert({ email, invited_by: myId }).select().single();
+    setInviteBusy(false);
+    if (inviteErr) {
+      setInviteError(inviteErr.code === "23505" ? "Ese correo ya está invitado." : inviteErr.message);
+      return;
+    }
+    setInvites(prev => [data, ...prev]);
+    setInviteNotice(`Invitación guardada — cuando ${email} se registre, entra gratis automáticamente.`);
+    setInviteEmail("");
+  }
+
+  async function removeInvite(email) {
+    const { error: deleteError } = await supabase.from("invited_emails").delete().eq("email", email);
+    if (deleteError) { setInviteError(deleteError.message); return; }
+    setInvites(prev => prev.filter(i => i.email !== email));
+  }
 
   async function toggleDisabled(row) {
     const { error } = await supabase.from("profiles").update({ disabled: !row.disabled }).eq("id", row.id);
@@ -3197,6 +3241,46 @@ function Usuarios({ myId }) {
   return (
     <div>
       <SectionHeader icon={Users} title="Usuarios" subtitle="Cuentas registradas en PROGO" accent={COLORS.violet} />
+
+      <SoftCard style={{ padding: 18, marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <IconBadge icon={UserPlus} color={COLORS.teal} size={36} />
+          <div>
+            <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14, fontWeight: 700, margin: 0 }}>Invitar amigos</p>
+            <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12, margin: "2px 0 0" }}>Entran gratis, sin pagar mensualidad — ya tengan cuenta o no.</p>
+          </div>
+        </div>
+        <form onSubmit={inviteFriend} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input
+            type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
+            placeholder="correo@ejemplo.com" style={{ ...inputStyle(), flex: 1, minWidth: 200, marginBottom: 0 }}
+          />
+          <button type="submit" disabled={inviteBusy} style={{
+            ...fontBody, background: COLORS.teal, color: COLORS.onAccent, fontWeight: 700, fontSize: 13.5,
+            border: "none", borderRadius: 12, padding: "0 20px", cursor: inviteBusy ? "default" : "pointer",
+            opacity: inviteBusy ? 0.7 : 1,
+          }}>{inviteBusy ? "Un momento…" : "Invitar"}</button>
+        </form>
+        {inviteError && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 12.5, margin: "10px 0 0" }}>{inviteError}</p>}
+        {inviteNotice && <p style={{ ...fontBody, color: COLORS.teal, fontSize: 12.5, margin: "10px 0 0" }}>{inviteNotice}</p>}
+        {invites.length > 0 && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${COLORS.border}` }}>
+            <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12, margin: "0 0 8px" }}>Invitados que aún no se registran</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {invites.map(inv => (
+                <div key={inv.email} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{ ...fontMono, color: COLORS.paper, fontSize: 12.5 }}>{inv.email}</span>
+                  <button onClick={() => removeInvite(inv.email)} style={{
+                    ...fontBody, border: "none", background: "transparent", color: COLORS.coral,
+                    fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 4px",
+                  }}>Quitar</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </SoftCard>
+
       {error && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 13, margin: "0 0 16px" }}>{error}</p>}
       {loading && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, padding: 20 }}>Cargando…</p>}
       {!loading && rows.length === 0 && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, padding: 20 }}>Sin usuarios todavía.</p>}
