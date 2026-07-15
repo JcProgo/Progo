@@ -3183,8 +3183,12 @@ function Usuarios({ myId }) {
   }
 
   async function toggleModule(row, key) {
-    const current = row.enabled_modules ?? GATEABLE_MODULES.map(m => m.key);
-    const next = current.includes(key) ? current.filter(k => k !== key) : [...current, key];
+    // Baseline "todo lo que hoy está encendido para esta persona": si enabled_modules
+    // sigue en null, eso es todos los módulos normales (los restringidos como Trading
+    // y Productos testeados NO cuentan como "encendidos por defecto").
+    const baseline = row.enabled_modules ?? GATEABLE_MODULES.filter(m => !RESTRICTED_MODULES.includes(m.key)).map(m => m.key);
+    const wasOn = isModuleEnabled(key, row.enabled_modules);
+    const next = wasOn ? baseline.filter(k => k !== key) : [...baseline, key];
     const { error } = await supabase.from("profiles").update({ enabled_modules: next }).eq("id", row.id);
     if (error) { setError(error.message); return; }
     setRows(prev => prev.map(r => r.id === row.id ? { ...r, enabled_modules: next } : r));
@@ -3199,7 +3203,6 @@ function Usuarios({ myId }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {rows.map(r => {
           const access = accessLabel(r, subsByUser[r.id]);
-          const enabledModules = r.enabled_modules ?? GATEABLE_MODULES.map(m => m.key);
           return (
             <SoftCard key={r.id} style={{ padding: 18 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
@@ -3238,7 +3241,7 @@ function Usuarios({ myId }) {
                     <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12, margin: "0 0 8px" }}>Módulos habilitados</p>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {GATEABLE_MODULES.map(m => {
-                        const on = enabledModules.includes(m.key);
+                        const on = isModuleEnabled(m.key, r.enabled_modules);
                         return (
                           <button key={m.key} onClick={() => toggleModule(r, m.key)} style={{
                             ...fontBody, border: "none", cursor: "pointer", fontSize: 11.5, fontWeight: 600,
@@ -3281,6 +3284,18 @@ const NAV = [
 // "Resumen" queda fuera a propósito: siempre hay que dejarle a la persona una
 // vista de aterrizaje segura, no es un módulo "gateable".
 const GATEABLE_MODULES = NAV.filter(m => m.key !== "resumen");
+
+// Trading y Productos testeados quedan ocultos por defecto para cualquier cuenta
+// nueva — a diferencia del resto de módulos (que empiezan encendidos y el admin
+// los puede apagar), estos dos solo se ven si el admin se los prende explícitamente
+// a esa persona desde Usuarios.
+const RESTRICTED_MODULES = ["trading", "productos"];
+
+function isModuleEnabled(key, enabledModules) {
+  if (key === "resumen") return true;
+  if (RESTRICTED_MODULES.includes(key)) return Array.isArray(enabledModules) && enabledModules.includes(key);
+  return !enabledModules || enabledModules.includes(key);
+}
 
 // Barra inferior móvil (estilo iOS/Instagram): solo las 4 secciones de uso más
 // frecuente caben fijas; el resto vive detrás del quinto ícono "Más".
@@ -3377,9 +3392,7 @@ export default function App() {
   // en una vista a la que ya no debería tener acceso.
   useEffect(() => {
     if (!profile || profile.role === "admin") return;
-    const allowed = profile.enabled_modules;
-    if (!allowed) return;
-    if (view !== "resumen" && !allowed.includes(view)) setView("resumen");
+    if (view !== "resumen" && !isModuleEnabled(view, profile.enabled_modules)) setView("resumen");
   }, [profile?.enabled_modules, profile?.role, view]);
 
   // Si el usuario ya dio permiso de notificaciones antes (en este dispositivo), renueva la
@@ -3836,9 +3849,7 @@ export default function App() {
 
   // "Resumen" nunca se puede desactivar como módulo (siempre hay una vista
   // segura a la que aterrizar); enabled_modules === null significa "todos".
-  const visibleNav = isAdmin || !profile?.enabled_modules
-    ? NAV
-    : NAV.filter(item => item.key === "resumen" || profile.enabled_modules.includes(item.key));
+  const visibleNav = isAdmin ? NAV : NAV.filter(item => isModuleEnabled(item.key, profile?.enabled_modules));
   const bottomTabs = visibleNav.filter(item => BOTTOM_TAB_KEYS.includes(item.key));
   const moreActive = !BOTTOM_TAB_KEYS.includes(view);
   const navList = isAdmin
