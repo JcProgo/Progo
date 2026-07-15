@@ -437,3 +437,47 @@ create policy "select own or admin" on subscriptions
 create index if not exists subscriptions_user_idx on subscriptions (user_id);
 create index if not exists subscriptions_next_charge_idx on subscriptions (next_charge_date)
   where status in ('trialing','active','past_due');
+
+-- ============================================================
+-- 9. Trading — múltiples cuentas por usuario
+-- ============================================================
+
+-- Cada usuario puede llevar varias cuentas de trading en paralelo (ej. "Cuenta 1",
+-- "Cuenta 2"), cada una con su propio tamaño de cuenta y su propio calendario de
+-- operaciones (trades.account_id). profiles.account_size queda sin usar de aquí en
+-- adelante (mismo precedente que reminder_time: se deja la columna para no romper
+-- nada, pero ni el cliente ni ninguna función la vuelve a leer).
+create table if not exists trading_accounts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  name text not null default 'Cuenta 1',
+  account_size numeric not null default 10000,
+  created_at timestamptz not null default now()
+);
+
+alter table trading_accounts enable row level security;
+drop policy if exists "own rows" on trading_accounts;
+create policy "own rows" on trading_accounts for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index if not exists trading_accounts_user_idx on trading_accounts (user_id);
+
+alter table trades add column if not exists account_id bigint references trading_accounts(id) on delete cascade;
+
+-- Migración de datos: cualquier trade existente sin account_id (todos los de antes de
+-- este cambio) se engancha a una "Cuenta 1" nueva, sembrada con el account_size que
+-- ya tenía el usuario en profiles — así no se pierde ni se resetea nada.
+do $$
+declare
+  u record;
+  new_account_id bigint;
+begin
+  for u in select distinct user_id from trades where account_id is null
+  loop
+    insert into trading_accounts (user_id, name, account_size)
+    select u.user_id, 'Cuenta 1', coalesce(p.account_size, 10000)
+    from profiles p where p.id = u.user_id
+    returning id into new_account_id;
+
+    update trades set account_id = new_account_id
+    where user_id = u.user_id and account_id is null;
+  end loop;
+end $$;

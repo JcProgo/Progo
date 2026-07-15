@@ -2675,12 +2675,36 @@ function fmtPct(n) {
 }
 const ACCOUNT_PRESETS = [1000, 5000, 10000, 25000, 50000, 100000];
 
-function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTradeRow, patchTradeRow, deleteTradeRow }) {
+function Trading({ trades, setTrades, accounts, setAccounts, activeAccountId, setActiveAccountId, addAccount, patchAccount, deleteAccount, insertTradeRow, patchTradeRow, deleteTradeRow, financeLoading }) {
   const [ym, setYm] = useState({ year: CAL_YEAR, month: CAL_MONTH });
   const [tab, setTab] = useState("pnl");
   const [modalDate, setModalDate] = useState(null);
   const [form, setForm] = useState({ symbol: "", pnl: "" });
   const [editingId, setEditingId] = useState(null);
+  const [addingAccount, setAddingAccount] = useState(false);
+  const [newAccountName, setNewAccountName] = useState("");
+  const [newAccountSize, setNewAccountSize] = useState("10000");
+  const creatingDefaultRef = useRef(false);
+
+  // Cuenta nueva que nunca usó Trading: le creamos "Cuenta 1" automáticamente en
+  // cuanto sabemos con certeza que no tiene ninguna (después de que cargó de verdad,
+  // para no crear una de más mientras el fetch todavía está en camino).
+  useEffect(() => {
+    if (financeLoading || accounts.length > 0 || creatingDefaultRef.current) return;
+    creatingDefaultRef.current = true;
+    (async () => {
+      const created = await addAccount("Cuenta 1", 10000);
+      if (created) {
+        setAccounts(prev => prev.length > 0 ? prev : [created]);
+        setActiveAccountId(created.id);
+      }
+      creatingDefaultRef.current = false;
+    })();
+  }, [financeLoading, accounts.length]);
+
+  const accountTrades = trades.filter(t => t.accountId === activeAccountId);
+  const activeAccount = accounts.find(a => a.id === activeAccountId);
+  const accountSize = activeAccount?.account_size ?? 10000;
 
   const ds = d => `${ym.year}-${String(ym.month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const { cells } = monthMatrix(ym.year, ym.month);
@@ -2693,8 +2717,36 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
     });
   }
 
+  function updateAccountSize(value) {
+    if (!activeAccountId) return;
+    setAccounts(prev => prev.map(a => a.id === activeAccountId ? { ...a, account_size: value } : a));
+    patchAccount(activeAccountId, { account_size: value });
+  }
+
+  async function handleAddAccount() {
+    const name = newAccountName.trim() || `Cuenta ${accounts.length + 1}`;
+    const size = Number(newAccountSize) || 10000;
+    const created = await addAccount(name, size);
+    if (created) {
+      setAccounts(prev => [...prev, created]);
+      setActiveAccountId(created.id);
+    }
+    setAddingAccount(false);
+    setNewAccountName("");
+    setNewAccountSize("10000");
+  }
+
+  async function handleDeleteAccount(id) {
+    if (accounts.length <= 1) return; // nunca queda en 0 cuentas
+    await deleteAccount(id);
+    const remaining = accounts.filter(a => a.id !== id);
+    setAccounts(remaining);
+    setTrades(prev => prev.filter(t => t.accountId !== id)); // el cascade ya lo borró en la base
+    if (activeAccountId === id) setActiveAccountId(remaining[0]?.id ?? null);
+  }
+
   const monthPrefix = `${ym.year}-${String(ym.month + 1).padStart(2, "0")}`;
-  const monthTrades = trades.filter(t => t.date.startsWith(monthPrefix));
+  const monthTrades = accountTrades.filter(t => t.date.startsWith(monthPrefix));
   const monthPnl = monthTrades.reduce((s, t) => s + t.pnl, 0);
   const monthWins = monthTrades.filter(t => t.pnl > 0).length;
   const monthWinRate = monthTrades.length ? Math.round((monthWins / monthTrades.length) * 100) : 0;
@@ -2705,14 +2757,14 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
   const worstDay = dayEntries.reduce((m, [d, v]) => (!m || v < m[1]) ? [d, v] : m, null);
 
   async function addTrade() {
-    if (!form.symbol.trim() || form.pnl === "") return;
+    if (!form.symbol.trim() || form.pnl === "" || !activeAccountId) return;
     const symbol = form.symbol.trim().toUpperCase();
     const pnl = Number(form.pnl);
     if (editingId) {
       setTrades(prev => prev.map(t => t.id === editingId ? { ...t, symbol, pnl } : t));
       patchTradeRow(editingId, { symbol, pnl });
     } else {
-      const created = await insertTradeRow({ date: modalDate, symbol, pnl });
+      const created = await insertTradeRow({ date: modalDate, symbol, pnl, accountId: activeAccountId });
       if (created) setTrades(prev => [...prev, created]);
     }
     cancelEditTrade();
@@ -2721,7 +2773,7 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
   function cancelEditTrade() { setEditingId(null); setForm({ symbol: "", pnl: "" }); }
   function removeTrade(id) { setTrades(prev => prev.filter(t => t.id !== id)); deleteTradeRow(id); if (editingId === id) cancelEditTrade(); }
 
-  const modalTrades = modalDate ? trades.filter(t => t.date === modalDate).sort((a, b) => a.id - b.id) : [];
+  const modalTrades = modalDate ? accountTrades.filter(t => t.date === modalDate).sort((a, b) => a.id - b.id) : [];
   const modalPnl = modalTrades.reduce((s, t) => s + t.pnl, 0);
   const modalWins = modalTrades.filter(t => t.pnl > 0).length;
   const modalWinRate = modalTrades.length ? Math.round((modalWins / modalTrades.length) * 100) : null;
@@ -2732,9 +2784,54 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
   });
   const navBtnStyle = { background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 9, color: COLORS.paper, cursor: "pointer", padding: "8px 10px", display: "flex" };
 
+  if (financeLoading) {
+    return (
+      <div>
+        <SectionHeader icon={TrendingUp} title="Trading" subtitle="Tu desempeño diario en el mercado" accent={COLORS.teal} />
+        <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5 }}>Cargando trading…</p>
+      </div>
+    );
+  }
+
   return (
     <div>
       <SectionHeader icon={TrendingUp} title="Trading" subtitle="Tu desempeño diario en el mercado" accent={COLORS.teal} />
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        {accounts.map(a => (
+          <div key={a.id} style={{
+            display: "flex", alignItems: "center", gap: 6, borderRadius: 999, padding: "7px 8px 7px 16px",
+            border: `1px solid ${a.id === activeAccountId ? COLORS.teal : COLORS.border}`,
+            background: a.id === activeAccountId ? COLORS.teal + "22" : "transparent",
+          }}>
+            <button onClick={() => setActiveAccountId(a.id)} style={{
+              ...fontBody, border: "none", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 700,
+              color: a.id === activeAccountId ? COLORS.teal : COLORS.muted, padding: 0,
+            }}>{a.name}</button>
+            {accounts.length > 1 && a.id === activeAccountId && (
+              <button onClick={() => handleDeleteAccount(a.id)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 4 }}>
+                <Trash2 size={13} />
+              </button>
+            )}
+          </div>
+        ))}
+        {!addingAccount ? (
+          <button onClick={() => setAddingAccount(true)} style={{
+            display: "flex", alignItems: "center", gap: 4, borderRadius: 999, padding: "7px 14px",
+            border: `1px dashed ${COLORS.border}`, background: "transparent", color: COLORS.muted,
+            cursor: "pointer", ...fontBody, fontSize: 13, fontWeight: 600,
+          }}><Plus size={14} /> Cuenta nueva</button>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input value={newAccountName} onChange={e => setNewAccountName(e.target.value)} placeholder={`Cuenta ${accounts.length + 1}`}
+              style={{ ...inputStyle(), marginBottom: 0, width: 130 }} onKeyDown={e => e.key === "Enter" && handleAddAccount()} autoFocus />
+            <input type="number" value={newAccountSize} onChange={e => setNewAccountSize(e.target.value)} placeholder="Tamaño"
+              style={{ ...inputStyle(), marginBottom: 0, width: 100 }} onKeyDown={e => e.key === "Enter" && handleAddAccount()} />
+            <button onClick={handleAddAccount} style={{ background: COLORS.teal, border: "none", borderRadius: 8, cursor: "pointer", color: COLORS.onAccent, display: "flex", padding: 9 }}><Check size={15} /></button>
+            <button onClick={() => { setAddingAccount(false); setNewAccountName(""); setNewAccountSize("10000"); }} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.muted, display: "flex", padding: 9 }}><X size={15} /></button>
+          </div>
+        )}
+      </div>
 
       <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18, marginBottom: 20, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
         <span style={{ ...fontBody, color: COLORS.muted, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>Tamaño de cuenta</span>
@@ -2789,7 +2886,7 @@ function Trading({ trades, setTrades, accountSize, updateAccountSize, insertTrad
                 {cells.map((d, i) => {
                   if (!d) return <div key={i} />;
                   const dstr = ds(d);
-                  const dTrades = trades.filter(t => t.date === dstr);
+                  const dTrades = accountTrades.filter(t => t.date === dstr);
                   const hasTrades = dTrades.length > 0;
                   const dPnl = dTrades.reduce((s, t) => s + t.pnl, 0);
                   const dReturnPct = accountSize ? (dPnl / accountSize) * 100 : 0;
@@ -3502,7 +3599,8 @@ export default function App() {
   const [completions, setCompletions] = useState({});
   const [journals, setJournals] = useState({});
   const [trades, setTrades] = useState([]);
-  const [accountSize, setAccountSize] = useState(10000);
+  const [tradingAccounts, setTradingAccounts] = useState([]);
+  const [activeAccountId, setActiveAccountId] = useState(null);
   const [incomes, setIncomes] = useState([]);
   const [egresos, setEgresos] = useState([]);
   const [financeLoading, setFinanceLoading] = useState(true);
@@ -3525,7 +3623,7 @@ export default function App() {
     let cancelled = false;
     setFinanceLoading(true);
     (async () => {
-      const [goalsRes, incomesRes, egresosRes, catsRes, tasksRes, expensesRes, habitsRes, productsRes, notesRes, activitiesRes, completionsRes, journalsRes, tradesRes] = await Promise.all([
+      const [goalsRes, incomesRes, egresosRes, catsRes, tasksRes, expensesRes, habitsRes, productsRes, notesRes, activitiesRes, completionsRes, journalsRes, tradesRes, tradingAccountsRes] = await Promise.all([
         supabase.from("goals").select("*").order("id", { ascending: true }),
         supabase.from("incomes").select("*").order("income_date", { ascending: false }).order("id", { ascending: false }),
         supabase.from("egresos").select("*").order("expense_date", { ascending: false }).order("id", { ascending: false }),
@@ -3539,6 +3637,7 @@ export default function App() {
         supabase.from("activity_completions").select("*"),
         supabase.from("journals").select("*"),
         supabase.from("trades").select("*").order("date", { ascending: false }).order("id", { ascending: false }),
+        supabase.from("trading_accounts").select("*").order("id", { ascending: true }),
       ]);
       if (cancelled) return;
       if (!goalsRes.error) {
@@ -3577,9 +3676,16 @@ export default function App() {
         (journalsRes.data || []).forEach(r => { map[r.date] = { rating: r.rating, good: r.good, improve: r.improve, feeling: r.feeling, notes: r.notes }; });
         setJournals(map);
       } else console.error("Error cargando journals:", journalsRes.error.message);
-      if (!tradesRes.error) setTrades((tradesRes.data || []).map(r => ({ id: r.id, date: r.date, symbol: r.symbol, pnl: Number(r.pnl) })));
+      if (!tradesRes.error) setTrades((tradesRes.data || []).map(r => ({ id: r.id, date: r.date, symbol: r.symbol, pnl: Number(r.pnl), accountId: r.account_id })));
       else console.error("Error cargando trades:", tradesRes.error.message);
-      if (profile.account_size) setAccountSize(Number(profile.account_size));
+      if (!tradingAccountsRes.error) {
+        const accounts = tradingAccountsRes.data || [];
+        setTradingAccounts(accounts);
+        // Solo fija la cuenta activa la primera vez que carga — si el usuario ya
+        // había elegido otra cuenta, un re-fetch de `profile` (ej. al editar el
+        // ingreso mensual) no debe saltarla de vuelta a la primera.
+        setActiveAccountId(prev => prev ?? accounts[0]?.id ?? null);
+      } else console.error("Error cargando cuentas de trading:", tradingAccountsRes.error.message);
       setFinanceLoading(false);
     })();
     return () => { cancelled = true; };
@@ -3911,11 +4017,13 @@ export default function App() {
     if (error) console.error("Error guardando journal:", error.message);
   }
 
-  // --- Persistencia de Trading (tabla `trades`) ---
+  // --- Persistencia de Trading (tabla `trades`, varias cuentas por usuario) ---
   async function insertTradeRow(payload) {
-    const { data, error } = await supabase.from("trades").insert({ user_id: session.user.id, date: payload.date, symbol: payload.symbol, pnl: payload.pnl }).select().single();
+    const { data, error } = await supabase.from("trades")
+      .insert({ user_id: session.user.id, date: payload.date, symbol: payload.symbol, pnl: payload.pnl, account_id: payload.accountId })
+      .select().single();
     if (error) { console.error("Error creando operación:", error.message); return null; }
-    return { id: data.id, date: data.date, symbol: data.symbol, pnl: Number(data.pnl) };
+    return { id: data.id, date: data.date, symbol: data.symbol, pnl: Number(data.pnl), accountId: data.account_id };
   }
   async function patchTradeRow(id, patch) {
     const { error } = await supabase.from("trades").update(patch).eq("id", id);
@@ -3925,10 +4033,20 @@ export default function App() {
     const { error } = await supabase.from("trades").delete().eq("id", id);
     if (error) console.error("Error eliminando operación:", error.message);
   }
-  async function updateAccountSize(value) {
-    setAccountSize(value);
-    const { error } = await supabase.from("profiles").update({ account_size: value }).eq("id", session.user.id);
-    if (error) console.error("Error actualizando tamaño de cuenta:", error.message);
+
+  async function insertTradingAccountRow(name, accountSize) {
+    const { data, error } = await supabase.from("trading_accounts")
+      .insert({ user_id: session.user.id, name, account_size: accountSize }).select().single();
+    if (error) { console.error("Error creando cuenta:", error.message); return null; }
+    return data;
+  }
+  async function patchTradingAccountRow(id, patch) {
+    const { error } = await supabase.from("trading_accounts").update(patch).eq("id", id);
+    if (error) console.error("Error actualizando cuenta:", error.message);
+  }
+  async function deleteTradingAccountRow(id) {
+    const { error } = await supabase.from("trading_accounts").delete().eq("id", id);
+    if (error) console.error("Error eliminando cuenta:", error.message);
   }
 
   // "Resumen" nunca se puede desactivar como módulo (siempre hay una vista
@@ -4089,7 +4207,7 @@ export default function App() {
         {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} egresos={egresos} addEgreso={addEgreso} editEgreso={editEgreso} deleteEgreso={deleteEgreso} financeLoading={financeLoading} />}
         {view === "metas" && <Metas goals={goals} setGoals={setGoals} incomes={incomes} insertGoalRow={insertGoalRow} patchGoalRow={patchGoalRow} deleteGoalRow={deleteGoalRow} financeLoading={financeLoading} />}
         {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} patchGoalRow={patchGoalRow} patchTaskRow={patchTaskRow} patchHabitRow={patchHabitRow} insertActivityRow={insertActivityRow} patchActivityRow={patchActivityRow} deleteActivityRow={deleteActivityRow} toggleCompletionRow={toggleCompletionRow} patchJournalRow={patchJournalRow} />}
-        {view === "trading" && <Trading trades={trades} setTrades={setTrades} accountSize={accountSize} updateAccountSize={updateAccountSize} insertTradeRow={insertTradeRow} patchTradeRow={patchTradeRow} deleteTradeRow={deleteTradeRow} />}
+        {view === "trading" && <Trading trades={trades} setTrades={setTrades} accounts={tradingAccounts} setAccounts={setTradingAccounts} activeAccountId={activeAccountId} setActiveAccountId={setActiveAccountId} addAccount={insertTradingAccountRow} patchAccount={patchTradingAccountRow} deleteAccount={deleteTradingAccountRow} insertTradeRow={insertTradeRow} patchTradeRow={patchTradeRow} deleteTradeRow={deleteTradeRow} financeLoading={financeLoading} />}
         {view === "tareas" && <Tareas tasks={tasks} setTasks={setTasks} insertTaskRow={insertTaskRow} patchTaskRow={patchTaskRow} deleteTaskRow={deleteTaskRow} />}
         {view === "habitos" && <Habitos habits={habits} setHabits={setHabits} insertHabitRow={insertHabitRow} patchHabitRow={patchHabitRow} deleteHabitRow={deleteHabitRow} />}
         {view === "productos" && <Productos products={products} setProducts={setProducts} insertProductRow={insertProductRow} patchProductRow={patchProductRow} deleteProductRow={deleteProductRow} />}
