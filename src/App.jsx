@@ -2982,69 +2982,151 @@ function AuthScreen({ mode, setMode }) {
   );
 }
 
-const PRICES = { usd: { amount: "$14.99", label: "USD / mes" }, cop: { amount: "$48.900", label: "COP / mes" } };
+const WOMPI_BASE_URL = import.meta.env.VITE_WOMPI_BASE_URL;
+const WOMPI_PUBLIC_KEY = import.meta.env.VITE_WOMPI_PUBLIC_KEY;
 
-function Paywall({ mode, setMode }) {
-  const [currency, setCurrency] = useState("usd");
-  const [loading, setLoading] = useState(false);
+function Paywall({ mode, setMode, onSubscribed }) {
+  const [merchant, setMerchant] = useState(null);
+  const [merchantError, setMerchantError] = useState("");
+  const [card, setCard] = useState({ holder: "", number: "", expMonth: "", expYear: "", cvc: "" });
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedData, setAcceptedData] = useState(false);
+  const [step, setStep] = useState("form"); // form | working
   const [error, setError] = useState("");
 
-  async function handleSubscribe() {
-    setError(""); setLoading(true);
-    const { data, error } = await supabase.functions.invoke("create-checkout-session", { body: { currency } });
-    if (error || !data?.url) {
-      setError(error?.message || "No se pudo iniciar el pago. Intenta de nuevo.");
-      setLoading(false);
-      return;
+  useEffect(() => {
+    if (!WOMPI_PUBLIC_KEY || !WOMPI_BASE_URL) { setMerchantError("Falta configurar el pago. Contacta al administrador."); return; }
+    fetch(`${WOMPI_BASE_URL}/v1/merchants/${WOMPI_PUBLIC_KEY}`)
+      .then(res => res.json())
+      .then(body => {
+        const acceptance = body?.data?.presigned_acceptance;
+        const personalAuth = body?.data?.presigned_personal_data_auth;
+        if (!acceptance || !personalAuth) { setMerchantError("No se pudo cargar la información de pago."); return; }
+        setMerchant({
+          acceptanceToken: acceptance.acceptance_token,
+          termsUrl: acceptance.permalink,
+          personalAuthToken: personalAuth.acceptance_token,
+          dataUrl: personalAuth.permalink,
+        });
+      })
+      .catch(() => setMerchantError("No se pudo cargar la información de pago."));
+  }, []);
+
+  function updateCard(field, value) { setCard(c => ({ ...c, [field]: value })); }
+
+  async function handleSubscribe(e) {
+    e.preventDefault();
+    if (!merchant || !acceptedTerms || !acceptedData || step === "working") return;
+    setStep("working"); setError("");
+    try {
+      // 1. Tokeniza directo contra Wompi desde el navegador — el número de tarjeta
+      //    nunca toca nuestro backend, solo el token resultante.
+      const tokenRes = await fetch(`${WOMPI_BASE_URL}/v1/tokens/cards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${WOMPI_PUBLIC_KEY}` },
+        body: JSON.stringify({
+          number: card.number.replace(/\s+/g, ""),
+          exp_month: card.expMonth.trim().padStart(2, "0"),
+          exp_year: card.expYear.trim().padStart(2, "0"),
+          cvc: card.cvc.trim(),
+          card_holder: card.holder.trim(),
+        }),
+      });
+      const tokenBody = await tokenRes.json();
+      if (!tokenRes.ok || !tokenBody?.data?.id) {
+        const msg = tokenBody?.error?.messages
+          ? Object.values(tokenBody.error.messages).flat().join(" ")
+          : tokenBody?.error?.reason || "No se pudo validar la tarjeta.";
+        throw new Error(msg);
+      }
+
+      // 2. Nuestro backend guarda la tarjeta como fuente de pago reutilizable y
+      //    programa (sin cobrar todavía) el primer cobro para dentro de 7 días.
+      const { data, error: fnError } = await supabase.functions.invoke("create-wompi-payment-source", {
+        body: {
+          card_token: tokenBody.data.id,
+          acceptance_token: merchant.acceptanceToken,
+          accept_personal_auth: merchant.personalAuthToken,
+        },
+      });
+      if (fnError || data?.error) throw new Error(data?.error || fnError?.message || "No se pudo guardar la tarjeta.");
+
+      // 3. Espera corta a que la fila quede visible (cubre la carrera entre el
+      //    insert de la función y que el siguiente select ya la vea).
+      for (let attempt = 0; attempt < 10; attempt++) {
+        await new Promise(r => setTimeout(r, 1500));
+        const { data: sub } = await supabase.from("subscriptions").select("status").maybeSingle();
+        if (sub?.status === "trialing") break;
+      }
+      onSubscribed();
+    } catch (err) {
+      setError(err.message || "No se pudo procesar el pago. Intenta de nuevo.");
+      setStep("form");
     }
-    window.location.href = data.url;
   }
 
   return (
     <AuthShell mode={mode} setMode={setMode}>
       <p style={{ ...fontDisplay, fontSize: 17, fontWeight: 700, margin: "0 0 6px", textAlign: "center" }}>Tu prueba terminó</p>
-      <p style={{ ...fontBody, fontSize: 13.5, color: COLORS.muted, margin: "0 0 24px", textAlign: "center", lineHeight: 1.5 }}>
+      <p style={{ ...fontBody, fontSize: 13.5, color: COLORS.muted, margin: "0 0 20px", textAlign: "center", lineHeight: 1.5 }}>
         Suscríbete para seguir usando PROGO. 7 días gratis antes del primer cobro.
       </p>
 
-      <div style={{ position: "relative", display: "flex", background: COLORS.elevated, borderRadius: 14, padding: 4, marginBottom: 20 }}>
-        <div style={{
-          position: "absolute", top: 4, bottom: 4, left: currency === "usd" ? 4 : "50%",
-          width: "calc(50% - 4px)", background: COLORS.card, borderRadius: 10,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.18)", transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-        }} />
-        <button type="button" onClick={() => setCurrency("usd")} style={{
-          ...fontBody, position: "relative", flex: 1, padding: "9px 0", border: "none", background: "transparent",
-          cursor: "pointer", fontWeight: 700, fontSize: 13.5, color: currency === "usd" ? COLORS.paper : COLORS.muted,
-          transition: "color 0.2s",
-        }}>USD</button>
-        <button type="button" onClick={() => setCurrency("cop")} style={{
-          ...fontBody, position: "relative", flex: 1, padding: "9px 0", border: "none", background: "transparent",
-          cursor: "pointer", fontWeight: 700, fontSize: 13.5, color: currency === "cop" ? COLORS.paper : COLORS.muted,
-          transition: "color 0.2s",
-        }}>COP</button>
-      </div>
-
-      <div style={{
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "20px 0 24px",
-      }}>
-        <span style={{ ...fontDisplay, fontSize: 34, fontWeight: 800 }}>{PRICES[currency].amount}</span>
-        <span style={{ ...fontBody, fontSize: 12.5, color: COLORS.muted }}>{PRICES[currency].label}</span>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "0 0 20px" }}>
+        <span style={{ ...fontDisplay, fontSize: 34, fontWeight: 800 }}>$48.900</span>
+        <span style={{ ...fontBody, fontSize: 12.5, color: COLORS.muted }}>COP / mes</span>
         <span style={{
           ...fontBody, fontSize: 11.5, fontWeight: 700, color: COLORS.teal, background: `${COLORS.teal}1a`,
           borderRadius: 999, padding: "4px 10px", marginTop: 10,
         }}>7 días gratis</span>
       </div>
 
-      {error && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 12.5, margin: "0 0 12px", textAlign: "center" }}>{error}</p>}
+      {merchantError ? (
+        <p style={{ ...fontBody, color: COLORS.coral, fontSize: 12.5, margin: "0 0 12px", textAlign: "center" }}>{merchantError}</p>
+      ) : (
+        <form onSubmit={handleSubscribe}>
+          <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Titular de la tarjeta</label>
+          <input value={card.holder} onChange={e => updateCard("holder", e.target.value)} placeholder="Como aparece en la tarjeta" style={inputStyle()} autoComplete="cc-name" required />
 
-      <button type="button" onClick={handleSubscribe} disabled={loading} style={{
-        ...fontBody, width: "100%", background: COLORS.teal, color: COLORS.onAccent, fontWeight: 700, fontSize: 14.5,
-        border: "none", borderRadius: 12, padding: "13px 0", cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1,
-        boxShadow: `0 8px 20px ${COLORS.teal}40`, marginBottom: 12,
-      }}>
-        {loading ? "Un momento…" : "Suscribirme"}
-      </button>
+          <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Número de tarjeta</label>
+          <input value={card.number} onChange={e => updateCard("number", e.target.value)} placeholder="4242 4242 4242 4242" inputMode="numeric" style={inputStyle()} autoComplete="cc-number" required />
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Mes</label>
+              <input value={card.expMonth} onChange={e => updateCard("expMonth", e.target.value)} placeholder="MM" inputMode="numeric" maxLength={2} style={inputStyle()} autoComplete="cc-exp-month" required />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>Año</label>
+              <input value={card.expYear} onChange={e => updateCard("expYear", e.target.value)} placeholder="AA" inputMode="numeric" maxLength={2} style={inputStyle()} autoComplete="cc-exp-year" required />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ ...fontBody, color: COLORS.muted, fontSize: 12, display: "block", marginBottom: 4 }}>CVC</label>
+              <input value={card.cvc} onChange={e => updateCard("cvc", e.target.value)} placeholder="123" inputMode="numeric" maxLength={4} style={inputStyle()} autoComplete="cc-csc" required />
+            </div>
+          </div>
+
+          <label style={{ ...fontBody, display: "flex", alignItems: "flex-start", gap: 8, color: COLORS.muted, fontSize: 12, margin: "4px 0 8px", cursor: "pointer", lineHeight: 1.4 }}>
+            <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)} style={{ width: 16, height: 16, accentColor: COLORS.teal, cursor: "pointer", marginTop: 1, flexShrink: 0 }} />
+            <span>Acepto los <a href={merchant?.termsUrl} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.teal }}>términos y condiciones</a> de Wompi</span>
+          </label>
+          <label style={{ ...fontBody, display: "flex", alignItems: "flex-start", gap: 8, color: COLORS.muted, fontSize: 12, margin: "0 0 16px", cursor: "pointer", lineHeight: 1.4 }}>
+            <input type="checkbox" checked={acceptedData} onChange={e => setAcceptedData(e.target.checked)} style={{ width: 16, height: 16, accentColor: COLORS.teal, cursor: "pointer", marginTop: 1, flexShrink: 0 }} />
+            <span>Autorizo el <a href={merchant?.dataUrl} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.teal }}>tratamiento de mis datos personales</a></span>
+          </label>
+
+          {error && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 12.5, margin: "0 0 12px" }}>{error}</p>}
+
+          <button type="submit" disabled={!merchant || !acceptedTerms || !acceptedData || step === "working"} style={{
+            ...fontBody, width: "100%", background: COLORS.teal, color: COLORS.onAccent, fontWeight: 700, fontSize: 14.5,
+            border: "none", borderRadius: 12, padding: "13px 0", cursor: step === "working" ? "default" : "pointer",
+            opacity: (!merchant || !acceptedTerms || !acceptedData || step === "working") ? 0.6 : 1,
+            boxShadow: `0 8px 20px ${COLORS.teal}40`, marginBottom: 12,
+          }}>
+            {step === "working" ? "Un momento…" : "Suscribirme"}
+          </button>
+        </form>
+      )}
 
       <button type="button" onClick={() => supabase.auth.signOut()} style={{
         ...fontBody, width: "100%", background: "transparent", border: `1px solid ${COLORS.border}`, color: COLORS.muted,
@@ -3053,11 +3135,6 @@ function Paywall({ mode, setMode }) {
     </AuthShell>
   );
 }
-
-// Módulos que se pueden prender/apagar por usuario desde el panel de admin.
-// "Resumen" queda fuera a propósito: siempre hay que dejarle a la persona una
-// vista de aterrizaje segura, no es un módulo "gateable".
-const GATEABLE_MODULES = NAV.filter(m => m.key !== "resumen");
 
 function accessLabel(row, sub) {
   if (row.role === "admin") return { text: "Admin", color: COLORS.gold };
@@ -3200,6 +3277,11 @@ const NAV = [
   { key: "notas", label: "Notas", icon: StickyNote, get accent() { return COLORS.gold; } },
 ];
 
+// Módulos que se pueden prender/apagar por usuario desde el panel de admin.
+// "Resumen" queda fuera a propósito: siempre hay que dejarle a la persona una
+// vista de aterrizaje segura, no es un módulo "gateable".
+const GATEABLE_MODULES = NAV.filter(m => m.key !== "resumen");
+
 // Barra inferior móvil (estilo iOS/Instagram): solo las 4 secciones de uso más
 // frecuente caben fijas; el resto vive detrás del quinto ícono "Más".
 const BOTTOM_TAB_KEYS = ["resumen", "gastos", "rutina", "tareas"];
@@ -3253,11 +3335,18 @@ export default function App() {
     return () => { cancelled = true; };
   }, [session]);
 
-  // Suscripción de pago (Stripe). Solo consultamos la tabla si el usuario NO
+  // Suscripción de pago (Wompi). Solo consultamos la tabla si el usuario NO
   // está ya exento — así el 100% de las cuentas grandfathered/admin (todas las
   // que existían antes de esta función) no pagan un viaje de red de más.
   const [subscription, setSubscription] = useState(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  function refetchSubscription() {
+    if (!profile) return;
+    return supabase.from("subscriptions").select("*").eq("user_id", profile.id).maybeSingle().then(({ data, error }) => {
+      if (error) console.error("Error cargando suscripción:", error.message);
+      setSubscription(data || null);
+    });
+  }
   useEffect(() => {
     if (!profile) { setSubscription(null); return; }
     const exempt = profile.role === "admin" || profile.grandfathered || profile.free_access;
@@ -3275,31 +3364,6 @@ export default function App() {
     // reasigna con cada patch (ingreso mensual, categorías ocultas, etc.) y no
     // queremos volver a consultar la suscripción en cada uno de esos casos.
   }, [profile?.id, profile?.role, profile?.grandfathered, profile?.free_access]);
-
-  // Vuelta desde Stripe Checkout: si la URL trae ?checkout=success, el webhook
-  // puede tardar unos segundos en escribir la fila de `subscriptions` — reintenta
-  // unas pocas veces mientras llega, en vez de dejar a la persona en el paywall.
-  useEffect(() => {
-    if (!profile) return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") !== "success") return;
-    let cancelled = false;
-    let attempts = 0;
-    const interval = setInterval(async () => {
-      attempts++;
-      const { data } = await supabase.from("subscriptions").select("*").eq("user_id", profile.id).maybeSingle();
-      if (cancelled) return;
-      if (data && ["trialing", "active"].includes(data.status)) {
-        setSubscription(data);
-        clearInterval(interval);
-        window.history.replaceState({}, "", window.location.pathname);
-      } else if (attempts >= 10) {
-        clearInterval(interval);
-        window.history.replaceState({}, "", window.location.pathname);
-      }
-    }, 1500);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [profile?.id]);
 
   const [view, setView] = useState("resumen");
   const [mode, setMode] = useState("dark");
@@ -3445,7 +3509,7 @@ export default function App() {
   );
   if (profileLoading || !profile) return <AuthShell mode={mode} setMode={setMode}><p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, textAlign: "center", margin: 0 }}>Cargando tu perfil…</p></AuthShell>;
   if (subscriptionLoading) return <AuthShell mode={mode} setMode={setMode}><p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, textAlign: "center", margin: 0 }}>Verificando tu suscripción…</p></AuthShell>;
-  if (!hasAccess) return <Paywall mode={mode} setMode={setMode} />;
+  if (!hasAccess) return <Paywall mode={mode} setMode={setMode} onSubscribed={refetchSubscription} />;
 
   function selectView(key) { setView(key); setNavOpen(false); }
 

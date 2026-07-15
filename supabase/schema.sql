@@ -378,23 +378,33 @@ create policy "own rows" on push_subscriptions for all using (auth.uid() = user_
 create index if not exists push_subscriptions_user_idx on push_subscriptions (user_id);
 
 -- ============================================================
--- 8. Suscripciones (Stripe) — mensualidad para cuentas nuevas
+-- 8. Suscripciones (Wompi) — mensualidad para cuentas nuevas
 -- ============================================================
 
--- Estado de la suscripción de Stripe por usuario. Se llena solo desde la Edge
--- Function `stripe-webhook` (con la service_role key, que ignora RLS) — nunca se
--- escribe desde el cliente. Los usuarios (y el admin) solo pueden LEER su fila.
-create table if not exists subscriptions (
+-- Wompi no tiene concepto de "suscripción recurrente" como Stripe: guardamos una
+-- tarjeta tokenizada (wompi_payment_source_id) y la cobramos nosotros mismos cada
+-- mes vía el cron `charge-subscriptions`. Esta tabla se llena solo desde las Edge
+-- Functions `create-wompi-payment-source` (alta) y `wompi-webhook`/`charge-subscriptions`
+-- (actualización de estado), todas con la service_role key — nunca se escribe desde
+-- el cliente. Los usuarios (y el admin) solo pueden LEER su fila.
+--
+-- No hay filas reales todavía (nadie ha pagado con la versión anterior basada en
+-- Stripe), así que se reemplaza la tabla en seco en vez de migrarla.
+drop table if exists subscriptions cascade;
+
+create table subscriptions (
   id bigint generated always as identity primary key,
   user_id uuid not null references auth.users(id) on delete cascade unique,
-  stripe_customer_id text,
-  stripe_subscription_id text unique,
+  wompi_payment_source_id bigint,
+  wompi_customer_email text,
   status text not null default 'incomplete'
-    check (status in ('trialing','active','past_due','canceled','incomplete','incomplete_expired','unpaid','paused')),
-  currency text check (currency in ('usd','cop')),
-  current_period_end timestamptz,
+    check (status in ('trialing','active','past_due','canceled','incomplete')),
   trial_end timestamptz,
-  cancel_at_period_end boolean not null default false,
+  next_charge_date timestamptz,
+  last_transaction_id text,
+  last_charge_status text,
+  last_charge_attempt_at timestamptz,
+  failed_charge_count int not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -404,3 +414,5 @@ drop policy if exists "select own or admin" on subscriptions;
 create policy "select own or admin" on subscriptions
   for select using (auth.uid() = user_id or is_admin());
 create index if not exists subscriptions_user_idx on subscriptions (user_id);
+create index if not exists subscriptions_next_charge_idx on subscriptions (next_charge_date)
+  where status in ('trialing','active','past_due');

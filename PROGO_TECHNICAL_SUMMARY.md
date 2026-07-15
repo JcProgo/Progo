@@ -182,40 +182,60 @@ hacer si se vuelve a tocar el diseño.
   su iPhone** — la infraestructura completa (SQL, función, secrets, cron, Vercel) sí está verificada
   funcionando extremo a extremo del lado del servidor.
 
-### Suscripción de pago mensual (Stripe, nueva)
+### Suscripción de pago mensual (Wompi, nueva)
 Toda cuenta **nueva** (registrada después del despliegue de esta función) necesita
 suscripción activa o prueba de 7 días para entrar a la app; las cuentas que ya existían
-quedan `grandfathered = true` (gratis para siempre) automáticamente. $14.99 USD o
-$48.900 COP/mes, a elección del usuario. Ver `supabase/STRIPE_SETUP.md` para el estado
-exacto y los pasos manuales pendientes en el Dashboard de Stripe (código listo, falta
-crear el producto/precios/webhook en Stripe mismo).
+quedan `grandfathered = true` (gratis para siempre) automáticamente. **$48.900 COP/mes**
+(sin opción de USD — Wompi solo procesa en pesos colombianos). Se eligió Wompi (de
+Bancolombia) en vez de Stripe porque Stripe exige una entidad registrada en uno de sus
+países soportados (Colombia no está ahí directamente, y el usuario no tiene ni quiere
+tramitar una LLC en EE.UU.); se descartó también Bold porque su API de pagos en línea
+todavía no tiene cobro recurrente/tokenización documentado. Ver `supabase/WOMPI_SETUP.md`
+para el estado exacto y los pasos manuales pendientes en el dashboard de Wompi (código
+listo, falta crear la cuenta/llaves/webhook en Wompi mismo).
 
+- **Diferencia clave frente a Stripe:** Wompi no tiene concepto de "suscripción
+  recurrente" — se guarda la tarjeta tokenizada como una fuente de pago reutilizable
+  (`wompi_payment_source_id`), y un cron propio (`charge-subscriptions`, una vez al día,
+  mismo patrón `pg_cron`/`pg_net` que `send-reminders`) la cobra cuando corresponde: la
+  primera vez a los 7 días (fin de la prueba), luego cada 30 días.
 - **Esquema:** columnas `grandfathered`/`free_access`/`enabled_modules` en `profiles`
-  (sección 8 de `schema.sql`), tabla nueva `subscriptions` (solo lectura para el usuario,
-  solo la Edge Function del webhook escribe, vía `service_role`). Trigger
+  (sección 8 de `schema.sql`), tabla `subscriptions` (shape de Wompi:
+  `wompi_payment_source_id`, `status`, `next_charge_date`, `last_transaction_id`,
+  `last_charge_status`, `last_charge_attempt_at`, `failed_charge_count` — solo lectura
+  para el usuario, solo las Edge Functions escriben vía `service_role`). Trigger
   `protect_admin_only_columns` (`BEFORE UPDATE` en `profiles`) revierte esas columnas —
   y también `role`/`disabled` — a su valor anterior si quien edita no es admin, cerrando
   un hueco de RLS: las policies de fila no restringen qué *columnas* se pueden tocar, así
   que sin este trigger cualquiera podría auto-otorgarse acceso gratis vía REST directo.
-- **Edge Functions:** `create-checkout-session` (crea la sesión de Stripe Checkout,
-  desplegada SIN `--no-verify-jwt` porque la llama un navegador con sesión real) y
-  `stripe-webhook` (recibe los eventos de Stripe y escribe en `subscriptions`, desplegada
-  CON `--no-verify-jwt` porque Stripe no manda JWT de Supabase, solo su propia firma en
-  el header `Stripe-Signature`, verificada contra el cuerpo crudo de la petición).
-- **Cliente:** gate nuevo en la cadena de `App()` (ver §5) — `Paywall` (toggle de moneda +
-  botón "Suscribirme" que abre Stripe Checkout) se muestra si `!hasAccess`.
+- **Edge Functions (3, no 2 como con Stripe):** `create-wompi-payment-source` (recibe un
+  token de tarjeta ya generado en el navegador y crea la fuente de pago en Wompi,
+  desplegada SIN `--no-verify-jwt` porque la llama un navegador con sesión real),
+  `wompi-webhook` (recibe los eventos de Wompi y actualiza `subscriptions`, desplegada
+  CON `--no-verify-jwt` porque Wompi no manda JWT de Supabase, solo su propio checksum
+  — verificado con `crypto.subtle.digest` de Web Crypto, ya que Deno no tiene
+  `node:crypto`), y `charge-subscriptions` (el cron que dispara los cobros mensuales,
+  también CON `--no-verify-jwt`, mismo motivo que `send-reminders`).
+- **Cliente:** el número de tarjeta nunca toca nuestro backend — `Paywall` tokeniza
+  directo contra la API de Wompi desde el navegador con la llave pública
+  (`VITE_WOMPI_PUBLIC_KEY`), y solo manda el token resultante a
+  `create-wompi-payment-source`. Gate en la cadena de `App()` (ver §5) — `Paywall`
+  (formulario propio de tarjeta, precio fijo en COP) se muestra si `!hasAccess`.
   `hasAccess = isAdmin || grandfathered || free_access || suscripción trialing/activa`.
-  Tras volver de Checkout (`?checkout=success`), un efecto reintenta leer `subscriptions`
-  cada ~1.5s (máx. 10 intentos) mientras llega el webhook.
+  Tras guardar la tarjeta, `Paywall` hace un poll corto (~1.5s x 10 intentos) esperando
+  ver la fila en `trialing`, y llama a `onSubscribed` (una función `refetchSubscription`
+  que baja de `App()`) para refrescar el estado y salir del Paywall — no hay redirect de
+  ida y vuelta a ninguna página hosteada, a diferencia de Stripe Checkout.
 - **`enabled_modules` filtra `NAV`/`bottomTabs`:** `null` = todos los módulos
   habilitados; "Resumen" nunca se puede desactivar (siempre hay una vista de aterrizaje
   segura). Si el admin le quita a alguien el módulo que está viendo en ese momento, un
   efecto la regresa a "Resumen".
-- **Riesgo técnico sin verificar en producción todavía:** `npm:stripe` no se ha probado
-  antes bajo el runtime Deno de Supabase Edge Functions en este proyecto (a diferencia de
-  `npm:@supabase/supabase-js` y `npm:web-push`, ya probados). Verificar empíricamente al
-  desplegar, con el mismo método usado para diagnosticar el 401 de `send-reminders`
-  (`curl` directo + revisar logs de la función).
+- **Riesgos técnicos sin verificar en producción todavía:** sin 3D Secure en el guardado
+  de tarjeta (decisión deliberada para no inflar el alcance — podría significar más
+  rechazos en los cobros de renovación en algunas redes); el formato exacto del checksum
+  del webhook (¿header `X-Event-Checksum` o solo el campo del body?) no confirmado contra
+  un payload real; tarjetas de prueba de sandbox de Wompi aún no identificadas. Ver
+  `supabase/WOMPI_SETUP.md` para el detalle completo de estos riesgos y cómo verificarlos.
 
 ### Usuarios (solo admin)
 Lista de perfiles con tarjetas (no tabla): rol, fecha, activar/desactivar cuenta, estado
@@ -244,6 +264,8 @@ Archivo `.env` (NO está en git, sí en `.gitignore`; `.env.example` sí está c
 VITE_SUPABASE_URL=https://yzpyobyflkyvpflqqljt.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ... (JWT anon/public key, seguro exponer en frontend)
 VITE_VAPID_PUBLIC_KEY=BH4kqLS8... (llave pública VAPID para notificaciones push, también segura de exponer)
+VITE_WOMPI_PUBLIC_KEY=pub_test_... (llave pública de Wompi, segura de exponer — se usa para tokenizar tarjetas directo desde el navegador)
+VITE_WOMPI_BASE_URL=https://sandbox.wompi.co (o https://production.wompi.co en modo Live)
 ```
 
 **En Vercel** (Project → Settings → Environment Variables) deben existir las tres, marcadas para Production+Preview. **Importante:** Vite las "hornea" en build time — si se cambian, hay que hacer **Redeploy** manual en Vercel, no basta con guardarlas.
@@ -280,14 +302,14 @@ El token personal de Vercel usado para automatizar deploys/env vars durante esta
 
 ## 10. Próximos pasos sugeridos (no empezados)
 
-- **Completar la configuración de Stripe** — crear el producto/precios en el Dashboard de
-  Stripe, configurar los 3 secrets (`STRIPE_SECRET_KEY`, `STRIPE_PRICE_USD`,
-  `STRIPE_PRICE_COP`), desplegar las dos Edge Functions, registrar el webhook y
-  configurar `STRIPE_WEBHOOK_SECRET`, y probar de punta a punta con la tarjeta de prueba
-  `4242 4242 4242 4242` en modo Test antes de repetir en modo Live — ver
-  `supabase/STRIPE_SETUP.md` para la lista completa de pasos. Verificar también, al
-  desplegar, que `npm:stripe` funciona bajo el runtime Deno de Supabase (riesgo técnico
-  sin confirmar, ver §6).
+- **Completar la configuración de Wompi** — crear la cuenta en comercios.wompi.co, sacar
+  llaves de sandbox, configurar los 3 secrets de Edge Functions (`WOMPI_PRIVATE_KEY`,
+  `WOMPI_BASE_URL`, `WOMPI_EVENTS_SECRET`) + 2 env vars de cliente
+  (`VITE_WOMPI_PUBLIC_KEY`, `VITE_WOMPI_BASE_URL`), desplegar las 3 Edge Functions,
+  registrar el webhook a mano en el dashboard de Wompi, registrar el cron job de
+  `charge-subscriptions`, y probar de punta a punta con una tarjeta de prueba de sandbox
+  (número exacto pendiente de buscar en docs.wompi.co) antes de repetir en modo
+  producción — ver `supabase/WOMPI_SETUP.md` para la lista completa de pasos.
 - **Completar la configuración de notificaciones push** (SQL, deploy de la Edge Function, secrets VAPID, pg_cron, env var en Vercel — ver `supabase/PUSH_NOTIFICATIONS_SETUP.md`) y probar en el iPhone real que un recordatorio de hábito/tarea/rutina efectivamente llega con la app cerrada.
 - Confirmar que el cambio de `vite-plugin-pwa` de `generateSW` a `injectManifest` (necesario para poder escuchar `push`/`notificationclick`) no rompió el comportamiento de instalación/actualización de la PWA — probar en el iPhone que la app instalada sigue actualizándose igual que antes tras un deploy.
 - Confirmar con el usuario, en su iPhone real, que la barra inferior ya quedó bien posicionada (ver riesgo #1 arriba) — es el pendiente más urgente.
