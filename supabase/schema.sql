@@ -2,7 +2,7 @@
 -- Corre este archivo completo en Supabase: Project -> SQL Editor -> New query -> pega y "Run".
 -- Es idempotente: usa "if not exists" / "add column if not exists" en todo,
 -- así que es seguro volver a correrlo en una base que ya tiene parte del esquema
--- (por ejemplo, para agregar solo la sección 7 de notificaciones push,
+-- (por ejemplo, para agregar solo la sección 8 de suscripciones,
 -- que es lo único nuevo si ya corriste una versión anterior de este archivo).
 --
 -- Este archivo reemplaza el historial de migraciones incrementales
@@ -24,6 +24,13 @@ create table if not exists profiles (
 alter table profiles add column if not exists monthly_income numeric;
 alter table profiles add column if not exists account_size numeric not null default 10000;
 alter table profiles add column if not exists hidden_categories jsonb not null default '[]'::jsonb;
+
+-- Suscripción de pago (ver sección 8): `add column ... default true` deja a TODAS las
+-- cuentas existentes en grandfathered=true en el momento en que se corre este archivo.
+-- Las cuentas nuevas quedan en false porque handle_new_user() (abajo) lo inserta explícito.
+alter table profiles add column if not exists grandfathered boolean not null default true;
+alter table profiles add column if not exists free_access boolean not null default false;
+alter table profiles add column if not exists enabled_modules jsonb; -- null = todos los módulos habilitados
 
 alter table profiles enable row level security;
 
@@ -50,8 +57,39 @@ drop policy if exists "insert own" on profiles;
 create policy "insert own" on profiles
   for insert with check (auth.uid() = id and role = 'user');
 
+-- La policy "update own or admin" de arriba deja que cualquiera actualice SU PROPIA
+-- fila — sin esto, un usuario podría hacerse admin, quitarse `disabled`, o (ahora que
+-- importa el dinero) ponerse `free_access`/`grandfathered` en true por su cuenta con
+-- una llamada REST directa. Este trigger revierte esas columnas a su valor anterior
+-- si quien actualiza no es admin, dejando `update own` seguro para el resto de campos
+-- (monthly_income, account_size, hidden_categories, etc.) que sí puede tocar el dueño.
+create or replace function protect_admin_only_profile_columns()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    new.role := old.role;
+    new.disabled := old.disabled;
+    new.free_access := old.free_access;
+    new.grandfathered := old.grandfathered;
+    new.enabled_modules := old.enabled_modules;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_admin_only_columns on profiles;
+create trigger protect_admin_only_columns
+  before update on profiles
+  for each row execute function protect_admin_only_profile_columns();
+
 -- Crea automáticamente la fila de perfil cuando alguien se registra.
 -- El correo de JC CREW (juaneschaverra15@gmail.com) queda marcado 'admin' automáticamente.
+-- grandfathered=false explícito: las cuentas nuevas de aquí en adelante SÍ deben pagar
+-- (las que ya existían quedaron en true por el default de la columna, arriba).
 create or replace function handle_new_user()
 returns trigger
 language plpgsql
@@ -59,11 +97,12 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email, role)
+  insert into public.profiles (id, email, role, grandfathered)
   values (
     new.id,
     new.email,
-    case when new.email = 'juaneschaverra15@gmail.com' then 'admin' else 'user' end
+    case when new.email = 'juaneschaverra15@gmail.com' then 'admin' else 'user' end,
+    false
   );
   return new;
 end;
@@ -337,3 +376,31 @@ alter table push_subscriptions enable row level security;
 drop policy if exists "own rows" on push_subscriptions;
 create policy "own rows" on push_subscriptions for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create index if not exists push_subscriptions_user_idx on push_subscriptions (user_id);
+
+-- ============================================================
+-- 8. Suscripciones (Stripe) — mensualidad para cuentas nuevas
+-- ============================================================
+
+-- Estado de la suscripción de Stripe por usuario. Se llena solo desde la Edge
+-- Function `stripe-webhook` (con la service_role key, que ignora RLS) — nunca se
+-- escribe desde el cliente. Los usuarios (y el admin) solo pueden LEER su fila.
+create table if not exists subscriptions (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users(id) on delete cascade unique,
+  stripe_customer_id text,
+  stripe_subscription_id text unique,
+  status text not null default 'incomplete'
+    check (status in ('trialing','active','past_due','canceled','incomplete','incomplete_expired','unpaid','paused')),
+  currency text check (currency in ('usd','cop')),
+  current_period_end timestamptz,
+  trial_end timestamptz,
+  cancel_at_period_end boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table subscriptions enable row level security;
+drop policy if exists "select own or admin" on subscriptions;
+create policy "select own or admin" on subscriptions
+  for select using (auth.uid() = user_id or is_admin());
+create index if not exists subscriptions_user_idx on subscriptions (user_id);

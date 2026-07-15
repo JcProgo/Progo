@@ -91,7 +91,7 @@ session (Supabase Auth)
       cubría Metas/Ingresos; ahora gatea TODO lo anterior).
 ```
 
-Gates de render en `App()` (en este orden): `!isSupabaseConfigured` → `authLoading` → `disabledNotice` → `!session` → `profileError` → `profileLoading || !profile`. Cada uno con su propia pantalla en `AuthShell`.
+Gates de render en `App()` (en este orden): `!isSupabaseConfigured` → `authLoading` → `disabledNotice` → `!session` → `profileError` → `profileLoading || !profile` → `subscriptionLoading` → `!hasAccess` (nuevo, muestra `Paywall`). Cada uno con su propia pantalla en `AuthShell`.
 
 ---
 
@@ -182,8 +182,45 @@ hacer si se vuelve a tocar el diseño.
   su iPhone** — la infraestructura completa (SQL, función, secrets, cron, Vercel) sí está verificada
   funcionando extremo a extremo del lado del servidor.
 
+### Suscripción de pago mensual (Stripe, nueva)
+Toda cuenta **nueva** (registrada después del despliegue de esta función) necesita
+suscripción activa o prueba de 7 días para entrar a la app; las cuentas que ya existían
+quedan `grandfathered = true` (gratis para siempre) automáticamente. $14.99 USD o
+$48.900 COP/mes, a elección del usuario. Ver `supabase/STRIPE_SETUP.md` para el estado
+exacto y los pasos manuales pendientes en el Dashboard de Stripe (código listo, falta
+crear el producto/precios/webhook en Stripe mismo).
+
+- **Esquema:** columnas `grandfathered`/`free_access`/`enabled_modules` en `profiles`
+  (sección 8 de `schema.sql`), tabla nueva `subscriptions` (solo lectura para el usuario,
+  solo la Edge Function del webhook escribe, vía `service_role`). Trigger
+  `protect_admin_only_columns` (`BEFORE UPDATE` en `profiles`) revierte esas columnas —
+  y también `role`/`disabled` — a su valor anterior si quien edita no es admin, cerrando
+  un hueco de RLS: las policies de fila no restringen qué *columnas* se pueden tocar, así
+  que sin este trigger cualquiera podría auto-otorgarse acceso gratis vía REST directo.
+- **Edge Functions:** `create-checkout-session` (crea la sesión de Stripe Checkout,
+  desplegada SIN `--no-verify-jwt` porque la llama un navegador con sesión real) y
+  `stripe-webhook` (recibe los eventos de Stripe y escribe en `subscriptions`, desplegada
+  CON `--no-verify-jwt` porque Stripe no manda JWT de Supabase, solo su propia firma en
+  el header `Stripe-Signature`, verificada contra el cuerpo crudo de la petición).
+- **Cliente:** gate nuevo en la cadena de `App()` (ver §5) — `Paywall` (toggle de moneda +
+  botón "Suscribirme" que abre Stripe Checkout) se muestra si `!hasAccess`.
+  `hasAccess = isAdmin || grandfathered || free_access || suscripción trialing/activa`.
+  Tras volver de Checkout (`?checkout=success`), un efecto reintenta leer `subscriptions`
+  cada ~1.5s (máx. 10 intentos) mientras llega el webhook.
+- **`enabled_modules` filtra `NAV`/`bottomTabs`:** `null` = todos los módulos
+  habilitados; "Resumen" nunca se puede desactivar (siempre hay una vista de aterrizaje
+  segura). Si el admin le quita a alguien el módulo que está viendo en ese momento, un
+  efecto la regresa a "Resumen".
+- **Riesgo técnico sin verificar en producción todavía:** `npm:stripe` no se ha probado
+  antes bajo el runtime Deno de Supabase Edge Functions en este proyecto (a diferencia de
+  `npm:@supabase/supabase-js` y `npm:web-push`, ya probados). Verificar empíricamente al
+  desplegar, con el mismo método usado para diagnosticar el 401 de `send-reminders`
+  (`curl` directo + revisar logs de la función).
+
 ### Usuarios (solo admin)
-Lista de perfiles, activar/desactivar cuentas.
+Lista de perfiles con tarjetas (no tabla): rol, fecha, activar/desactivar cuenta, estado
+de suscripción (cruzado con `subscriptions`), toggle "Acceso gratis" y chips para
+prender/apagar módulos individuales por persona.
 
 ### Móvil / responsive / PWA
 - `useIsMobile()` hook (breakpoint 768px) usado en todos los grids de 2 columnas para colapsar a 1.
@@ -243,6 +280,14 @@ El token personal de Vercel usado para automatizar deploys/env vars durante esta
 
 ## 10. Próximos pasos sugeridos (no empezados)
 
+- **Completar la configuración de Stripe** — crear el producto/precios en el Dashboard de
+  Stripe, configurar los 3 secrets (`STRIPE_SECRET_KEY`, `STRIPE_PRICE_USD`,
+  `STRIPE_PRICE_COP`), desplegar las dos Edge Functions, registrar el webhook y
+  configurar `STRIPE_WEBHOOK_SECRET`, y probar de punta a punta con la tarjeta de prueba
+  `4242 4242 4242 4242` en modo Test antes de repetir en modo Live — ver
+  `supabase/STRIPE_SETUP.md` para la lista completa de pasos. Verificar también, al
+  desplegar, que `npm:stripe` funciona bajo el runtime Deno de Supabase (riesgo técnico
+  sin confirmar, ver §6).
 - **Completar la configuración de notificaciones push** (SQL, deploy de la Edge Function, secrets VAPID, pg_cron, env var en Vercel — ver `supabase/PUSH_NOTIFICATIONS_SETUP.md`) y probar en el iPhone real que un recordatorio de hábito/tarea/rutina efectivamente llega con la app cerrada.
 - Confirmar que el cambio de `vite-plugin-pwa` de `generateSW` a `injectManifest` (necesario para poder escuchar `push`/`notificationclick`) no rompió el comportamiento de instalación/actualización de la PWA — probar en el iPhone que la app instalada sigue actualizándose igual que antes tras un deploy.
 - Confirmar con el usuario, en su iPhone real, que la barra inferior ya quedó bien posicionada (ver riesgo #1 arriba) — es el pendiente más urgente.

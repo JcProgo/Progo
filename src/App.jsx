@@ -2982,15 +2982,112 @@ function AuthScreen({ mode, setMode }) {
   );
 }
 
+const PRICES = { usd: { amount: "$14.99", label: "USD / mes" }, cop: { amount: "$48.900", label: "COP / mes" } };
+
+function Paywall({ mode, setMode }) {
+  const [currency, setCurrency] = useState("usd");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubscribe() {
+    setError(""); setLoading(true);
+    const { data, error } = await supabase.functions.invoke("create-checkout-session", { body: { currency } });
+    if (error || !data?.url) {
+      setError(error?.message || "No se pudo iniciar el pago. Intenta de nuevo.");
+      setLoading(false);
+      return;
+    }
+    window.location.href = data.url;
+  }
+
+  return (
+    <AuthShell mode={mode} setMode={setMode}>
+      <p style={{ ...fontDisplay, fontSize: 17, fontWeight: 700, margin: "0 0 6px", textAlign: "center" }}>Tu prueba terminó</p>
+      <p style={{ ...fontBody, fontSize: 13.5, color: COLORS.muted, margin: "0 0 24px", textAlign: "center", lineHeight: 1.5 }}>
+        Suscríbete para seguir usando PROGO. 7 días gratis antes del primer cobro.
+      </p>
+
+      <div style={{ position: "relative", display: "flex", background: COLORS.elevated, borderRadius: 14, padding: 4, marginBottom: 20 }}>
+        <div style={{
+          position: "absolute", top: 4, bottom: 4, left: currency === "usd" ? 4 : "50%",
+          width: "calc(50% - 4px)", background: COLORS.card, borderRadius: 10,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.18)", transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+        }} />
+        <button type="button" onClick={() => setCurrency("usd")} style={{
+          ...fontBody, position: "relative", flex: 1, padding: "9px 0", border: "none", background: "transparent",
+          cursor: "pointer", fontWeight: 700, fontSize: 13.5, color: currency === "usd" ? COLORS.paper : COLORS.muted,
+          transition: "color 0.2s",
+        }}>USD</button>
+        <button type="button" onClick={() => setCurrency("cop")} style={{
+          ...fontBody, position: "relative", flex: 1, padding: "9px 0", border: "none", background: "transparent",
+          cursor: "pointer", fontWeight: 700, fontSize: 13.5, color: currency === "cop" ? COLORS.paper : COLORS.muted,
+          transition: "color 0.2s",
+        }}>COP</button>
+      </div>
+
+      <div style={{
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "20px 0 24px",
+      }}>
+        <span style={{ ...fontDisplay, fontSize: 34, fontWeight: 800 }}>{PRICES[currency].amount}</span>
+        <span style={{ ...fontBody, fontSize: 12.5, color: COLORS.muted }}>{PRICES[currency].label}</span>
+        <span style={{
+          ...fontBody, fontSize: 11.5, fontWeight: 700, color: COLORS.teal, background: `${COLORS.teal}1a`,
+          borderRadius: 999, padding: "4px 10px", marginTop: 10,
+        }}>7 días gratis</span>
+      </div>
+
+      {error && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 12.5, margin: "0 0 12px", textAlign: "center" }}>{error}</p>}
+
+      <button type="button" onClick={handleSubscribe} disabled={loading} style={{
+        ...fontBody, width: "100%", background: COLORS.teal, color: COLORS.onAccent, fontWeight: 700, fontSize: 14.5,
+        border: "none", borderRadius: 12, padding: "13px 0", cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1,
+        boxShadow: `0 8px 20px ${COLORS.teal}40`, marginBottom: 12,
+      }}>
+        {loading ? "Un momento…" : "Suscribirme"}
+      </button>
+
+      <button type="button" onClick={() => supabase.auth.signOut()} style={{
+        ...fontBody, width: "100%", background: "transparent", border: `1px solid ${COLORS.border}`, color: COLORS.muted,
+        fontWeight: 600, fontSize: 13.5, borderRadius: 10, padding: "10px 0", cursor: "pointer",
+      }}>Cerrar sesión</button>
+    </AuthShell>
+  );
+}
+
+// Módulos que se pueden prender/apagar por usuario desde el panel de admin.
+// "Resumen" queda fuera a propósito: siempre hay que dejarle a la persona una
+// vista de aterrizaje segura, no es un módulo "gateable".
+const GATEABLE_MODULES = NAV.filter(m => m.key !== "resumen");
+
+function accessLabel(row, sub) {
+  if (row.role === "admin") return { text: "Admin", color: COLORS.gold };
+  if (row.grandfathered) return { text: "Gratis (fundador)", color: COLORS.teal };
+  if (row.free_access) return { text: "Acceso gratis", color: COLORS.teal };
+  if (sub?.status === "trialing") return { text: "Prueba", color: COLORS.gold };
+  if (sub?.status === "active") return { text: "Activa", color: COLORS.teal };
+  if (sub) return { text: sub.status, color: COLORS.coral };
+  return { text: "Sin suscripción", color: COLORS.coral };
+}
+
 function Usuarios({ myId }) {
   const [rows, setRows] = useState([]);
+  const [subsByUser, setSubsByUser] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   function load() {
     setLoading(true);
-    supabase.from("profiles").select("*").order("created_at", { ascending: false }).then(({ data, error }) => {
-      if (error) setError(error.message); else setRows(data || []);
+    Promise.all([
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+      supabase.from("subscriptions").select("*"),
+    ]).then(([profilesRes, subsRes]) => {
+      if (profilesRes.error) setError(profilesRes.error.message);
+      else setRows(profilesRes.data || []);
+      if (!subsRes.error) {
+        const map = {};
+        for (const s of subsRes.data || []) map[s.user_id] = s;
+        setSubsByUser(map);
+      }
       setLoading(false);
     });
   }
@@ -3002,39 +3099,85 @@ function Usuarios({ myId }) {
     setRows(prev => prev.map(r => r.id === row.id ? { ...r, disabled: !r.disabled } : r));
   }
 
+  async function toggleFreeAccess(row) {
+    const { error } = await supabase.from("profiles").update({ free_access: !row.free_access }).eq("id", row.id);
+    if (error) { setError(error.message); return; }
+    setRows(prev => prev.map(r => r.id === row.id ? { ...r, free_access: !r.free_access } : r));
+  }
+
+  async function toggleModule(row, key) {
+    const current = row.enabled_modules ?? GATEABLE_MODULES.map(m => m.key);
+    const next = current.includes(key) ? current.filter(k => k !== key) : [...current, key];
+    const { error } = await supabase.from("profiles").update({ enabled_modules: next }).eq("id", row.id);
+    if (error) { setError(error.message); return; }
+    setRows(prev => prev.map(r => r.id === row.id ? { ...r, enabled_modules: next } : r));
+  }
+
   return (
     <div>
       <SectionHeader icon={Users} title="Usuarios" subtitle="Cuentas registradas en PROGO" accent={COLORS.violet} />
       {error && <p style={{ ...fontBody, color: COLORS.coral, fontSize: 13, margin: "0 0 16px" }}>{error}</p>}
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 18, overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <div style={{ minWidth: 620 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 16, padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
-              {["Correo", "Rol", "Registrado", "Estado"].map(h => (
-                <span key={h} style={{ ...fontBody, color: COLORS.muted, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>{h}</span>
-              ))}
-            </div>
-            {loading && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, padding: 20 }}>Cargando…</p>}
-            {!loading && rows.length === 0 && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, padding: 20 }}>Sin usuarios todavía.</p>}
-            {rows.map(r => (
-              <div key={r.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 16, padding: "14px 20px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center" }}>
-                <span style={{ ...fontBody, color: COLORS.paper, fontSize: 13.5 }}>{r.email}</span>
-                <span style={{ ...fontMono, color: r.role === "admin" ? COLORS.gold : COLORS.muted, fontSize: 12.5, fontWeight: 600 }}>{r.role === "admin" ? "Admin" : "Usuario"}</span>
-                <span style={{ ...fontMono, color: COLORS.muted, fontSize: 12.5 }}>{new Date(r.created_at).toLocaleDateString("es-CO")}</span>
-                {r.id === myId ? (
-                  <span style={{ ...fontMono, color: COLORS.muted, fontSize: 12 }}>—</span>
-                ) : (
-                  <button onClick={() => toggleDisabled(r)} style={{
-                    ...fontBody, justifySelf: "start", border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600,
-                    padding: "6px 12px", borderRadius: 20,
-                    background: r.disabled ? COLORS.coral + "22" : COLORS.teal + "22",
-                    color: r.disabled ? COLORS.coral : COLORS.teal,
-                  }}>{r.disabled ? "Desactivado" : "Activo"}</button>
-                )}
+      {loading && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, padding: 20 }}>Cargando…</p>}
+      {!loading && rows.length === 0 && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 13, padding: 20 }}>Sin usuarios todavía.</p>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {rows.map(r => {
+          const access = accessLabel(r, subsByUser[r.id]);
+          const enabledModules = r.enabled_modules ?? GATEABLE_MODULES.map(m => m.key);
+          return (
+            <SoftCard key={r.id} style={{ padding: 18 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <IconBadge icon={Users} color={r.role === "admin" ? COLORS.gold : COLORS.violet} size={36} />
+                  <div>
+                    <p style={{ ...fontBody, color: COLORS.paper, fontSize: 13.5, fontWeight: 600, margin: 0 }}>{r.email}</p>
+                    <p style={{ ...fontMono, color: COLORS.muted, fontSize: 11.5, margin: "2px 0 0" }}>
+                      {r.role === "admin" ? "Admin" : "Usuario"} · Registrado {new Date(r.created_at).toLocaleDateString("es-CO")}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{
+                    ...fontBody, fontSize: 11.5, fontWeight: 700, borderRadius: 999, padding: "4px 10px",
+                    background: access.color + "1a", color: access.color,
+                  }}>{access.text}</span>
+                  {r.id !== myId && (
+                    <button onClick={() => toggleDisabled(r)} style={{
+                      ...fontBody, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600,
+                      padding: "6px 12px", borderRadius: 20,
+                      background: r.disabled ? COLORS.coral + "22" : COLORS.teal + "22",
+                      color: r.disabled ? COLORS.coral : COLORS.teal,
+                    }}>{r.disabled ? "Desactivado" : "Activo"}</button>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
+
+              {r.role !== "admin" && (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                    <span style={{ ...fontBody, color: COLORS.muted, fontSize: 12.5 }}>Acceso gratis (sin pagar mensualidad)</span>
+                    <AppleToggle checked={!!r.free_access} onChange={() => toggleFreeAccess(r)} />
+                  </div>
+                  <div style={{ paddingTop: 10, borderTop: `1px solid ${COLORS.border}` }}>
+                    <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12, margin: "0 0 8px" }}>Módulos habilitados</p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {GATEABLE_MODULES.map(m => {
+                        const on = enabledModules.includes(m.key);
+                        return (
+                          <button key={m.key} onClick={() => toggleModule(r, m.key)} style={{
+                            ...fontBody, border: "none", cursor: "pointer", fontSize: 11.5, fontWeight: 600,
+                            padding: "5px 10px", borderRadius: 20,
+                            background: on ? m.accent + "22" : COLORS.elevated,
+                            color: on ? m.accent : COLORS.muted,
+                          }}>{m.label}</button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </SoftCard>
+          );
+        })}
       </div>
     </div>
   );
@@ -3092,7 +3235,7 @@ export default function App() {
       if (error?.code === "PGRST116") {
         // No existe el perfil (cuenta creada antes de que existiera la tabla/trigger): lo autocreamos como usuario normal.
         const { data: created, error: insertError } = await supabase.from("profiles")
-          .insert({ id: session.user.id, email: session.user.email, role: "user" })
+          .insert({ id: session.user.id, email: session.user.email, role: "user", grandfathered: true })
           .select().single();
         if (cancelled) return;
         if (insertError) setProfileError(insertError.message);
@@ -3110,12 +3253,70 @@ export default function App() {
     return () => { cancelled = true; };
   }, [session]);
 
+  // Suscripción de pago (Stripe). Solo consultamos la tabla si el usuario NO
+  // está ya exento — así el 100% de las cuentas grandfathered/admin (todas las
+  // que existían antes de esta función) no pagan un viaje de red de más.
+  const [subscription, setSubscription] = useState(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  useEffect(() => {
+    if (!profile) { setSubscription(null); return; }
+    const exempt = profile.role === "admin" || profile.grandfathered || profile.free_access;
+    if (exempt) { setSubscription(null); return; }
+    let cancelled = false;
+    setSubscriptionLoading(true);
+    supabase.from("subscriptions").select("*").eq("user_id", profile.id).maybeSingle().then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) console.error("Error cargando suscripción:", error.message);
+      setSubscription(data || null);
+      setSubscriptionLoading(false);
+    });
+    return () => { cancelled = true; };
+    // Depende de estos 4 campos puntuales, no de `profile` completo: profile se
+    // reasigna con cada patch (ingreso mensual, categorías ocultas, etc.) y no
+    // queremos volver a consultar la suscripción en cada uno de esos casos.
+  }, [profile?.id, profile?.role, profile?.grandfathered, profile?.free_access]);
+
+  // Vuelta desde Stripe Checkout: si la URL trae ?checkout=success, el webhook
+  // puede tardar unos segundos en escribir la fila de `subscriptions` — reintenta
+  // unas pocas veces mientras llega, en vez de dejar a la persona en el paywall.
+  useEffect(() => {
+    if (!profile) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") !== "success") return;
+    let cancelled = false;
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      const { data } = await supabase.from("subscriptions").select("*").eq("user_id", profile.id).maybeSingle();
+      if (cancelled) return;
+      if (data && ["trialing", "active"].includes(data.status)) {
+        setSubscription(data);
+        clearInterval(interval);
+        window.history.replaceState({}, "", window.location.pathname);
+      } else if (attempts >= 10) {
+        clearInterval(interval);
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }, 1500);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [profile?.id]);
+
   const [view, setView] = useState("resumen");
   const [mode, setMode] = useState("dark");
   const [navOpen, setNavOpen] = useState(false);
   const [notifPermission, setNotifPermission] = useState(() => (typeof Notification !== "undefined" ? Notification.permission : "unsupported"));
   const [notifBusy, setNotifBusy] = useState(false);
   const [notifError, setNotifError] = useState("");
+
+  // Si el admin le quita a esta persona el módulo que está viendo ahora mismo
+  // (mientras la sesión sigue abierta), la regresa a "resumen" en vez de dejarla
+  // en una vista a la que ya no debería tener acceso.
+  useEffect(() => {
+    if (!profile || profile.role === "admin") return;
+    const allowed = profile.enabled_modules;
+    if (!allowed) return;
+    if (view !== "resumen" && !allowed.includes(view)) setView("resumen");
+  }, [profile?.enabled_modules, profile?.role, view]);
 
   // Si el usuario ya dio permiso de notificaciones antes (en este dispositivo), renueva la
   // suscripción en silencio al abrir la app — sin esto, tocaría tocar "Activar notificaciones"
@@ -3225,6 +3426,10 @@ export default function App() {
 
   Object.assign(COLORS, mode === "dark" ? DARK_THEME : LIGHT_THEME);
 
+  const isAdmin = profile?.role === "admin";
+  const hasAccess = isAdmin || profile?.grandfathered || profile?.free_access ||
+    (subscription && ["trialing", "active"].includes(subscription.status));
+
   if (!isSupabaseConfigured) return <SetupNotice mode={mode} setMode={setMode} />;
   if (authLoading) return <AuthShell mode={mode} setMode={setMode}><p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, textAlign: "center", margin: 0 }}>Cargando…</p></AuthShell>;
   if (disabledNotice) return <AuthShell mode={mode} setMode={setMode}><p style={{ ...fontBody, color: COLORS.coral, fontSize: 13.5, textAlign: "center", margin: 0 }}>Tu cuenta fue desactivada. Contacta al administrador.</p></AuthShell>;
@@ -3239,6 +3444,8 @@ export default function App() {
     </AuthShell>
   );
   if (profileLoading || !profile) return <AuthShell mode={mode} setMode={setMode}><p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, textAlign: "center", margin: 0 }}>Cargando tu perfil…</p></AuthShell>;
+  if (subscriptionLoading) return <AuthShell mode={mode} setMode={setMode}><p style={{ ...fontBody, color: COLORS.muted, fontSize: 13.5, textAlign: "center", margin: 0 }}>Verificando tu suscripción…</p></AuthShell>;
+  if (!hasAccess) return <Paywall mode={mode} setMode={setMode} />;
 
   function selectView(key) { setView(key); setNavOpen(false); }
 
@@ -3563,12 +3770,16 @@ export default function App() {
     if (error) console.error("Error actualizando tamaño de cuenta:", error.message);
   }
 
-  const isAdmin = profile?.role === "admin";
-  const bottomTabs = NAV.filter(item => BOTTOM_TAB_KEYS.includes(item.key));
+  // "Resumen" nunca se puede desactivar como módulo (siempre hay una vista
+  // segura a la que aterrizar); enabled_modules === null significa "todos".
+  const visibleNav = isAdmin || !profile?.enabled_modules
+    ? NAV
+    : NAV.filter(item => item.key === "resumen" || profile.enabled_modules.includes(item.key));
+  const bottomTabs = visibleNav.filter(item => BOTTOM_TAB_KEYS.includes(item.key));
   const moreActive = !BOTTOM_TAB_KEYS.includes(view);
   const navList = isAdmin
-    ? [...NAV, { key: "usuarios", label: "Usuarios", icon: Users, get accent() { return COLORS.violet; } }]
-    : NAV;
+    ? [...visibleNav, { key: "usuarios", label: "Usuarios", icon: Users, get accent() { return COLORS.violet; } }]
+    : visibleNav;
 
   const navItems = (
     <>
