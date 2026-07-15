@@ -48,12 +48,15 @@ function ChartLoading({ height }) {
           violet:   #7B6DD8            violet:   #5C46B8
 --------------------------------------------------------- */
 
+// Solo Poppins sigue viniendo de Google Fonts — la usa el isotipo "PROGO" (marca,
+// no texto de lectura). El resto de la app usa la fuente del sistema (San
+// Francisco en dispositivos Apple) en vez de una tipografía descargada.
 const FONT_IMPORT_ID = "progo-fonts";
 if (typeof document !== "undefined" && !document.getElementById(FONT_IMPORT_ID)) {
   const link = document.createElement("link");
   link.id = FONT_IMPORT_ID;
   link.rel = "stylesheet";
-  link.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Poppins:wght@800&display=swap";
+  link.href = "https://fonts.googleapis.com/css2?family=Poppins:wght@800&display=swap";
   document.head.appendChild(link);
 }
 
@@ -98,9 +101,14 @@ const LIGHT_THEME = {
 
 let COLORS = { ...DARK_THEME };
 
-const fontDisplay = { fontFamily: "'Space Grotesk', sans-serif" };
-const fontBody = { fontFamily: "'Inter', sans-serif" };
-const fontMono = { fontFamily: "'JetBrains Mono', monospace" };
+// Tipografía del sistema — en iPhone/Mac esto es San Francisco (la misma fuente del
+// teclado y del resto de iOS), sin descargar ningún archivo de fuente. En Windows/
+// Android cae en su propia fuente de sistema (Segoe UI / Roboto).
+const APPLE_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+const APPLE_MONO = "ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+const fontDisplay = { fontFamily: APPLE_SANS };
+const fontBody = { fontFamily: APPLE_SANS };
+const fontMono = { fontFamily: APPLE_MONO };
 
 function fmtCOP(n) {
   return "$" + Math.round(n).toLocaleString("es-CO");
@@ -422,11 +430,11 @@ function Resumen({ expenses, tasks, habits, products, customCategories }) {
               <recharts.ResponsiveContainer width="100%" height="100%">
                 <recharts.BarChart data={chartData} barSize={18}>
                   <recharts.CartesianGrid stroke={COLORS.border} vertical={false} />
-                  <recharts.XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={{ stroke: COLORS.border }} tickLine={false} />
-                  <recharts.YAxis tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} width={70} tickFormatter={v => fmtCOP(v)} />
+                  <recharts.XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: APPLE_MONO }} axisLine={{ stroke: COLORS.border }} tickLine={false} />
+                  <recharts.YAxis tick={{ fill: COLORS.muted, fontSize: 12, fontFamily: APPLE_MONO }} axisLine={false} tickLine={false} width={70} tickFormatter={v => fmtCOP(v)} />
                   <recharts.Tooltip
                     cursor={false}
-                    contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: "'Inter', sans-serif", fontSize: 13 }}
+                    contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: APPLE_SANS, fontSize: 13 }}
                     formatter={v => fmtCOP(v)}
                     labelStyle={{ color: COLORS.muted }}
                   />
@@ -1566,11 +1574,11 @@ function Habitos({ habits, setHabits, insertHabitRow, patchHabitRow, deleteHabit
                 <recharts.ResponsiveContainer width="100%" height="100%">
                   <recharts.BarChart data={dailyPct}>
                     <recharts.CartesianGrid stroke={COLORS.border} vertical={false} />
-                    <recharts.XAxis dataKey="day" tick={{ fill: COLORS.muted, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} axisLine={{ stroke: COLORS.border }} tickLine={false} interval={2} />
-                    <recharts.YAxis domain={[0, 100]} tick={{ fill: COLORS.muted, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} axisLine={false} tickLine={false} width={32} />
+                    <recharts.XAxis dataKey="day" tick={{ fill: COLORS.muted, fontSize: 10, fontFamily: APPLE_MONO }} axisLine={{ stroke: COLORS.border }} tickLine={false} interval={2} />
+                    <recharts.YAxis domain={[0, 100]} tick={{ fill: COLORS.muted, fontSize: 10, fontFamily: APPLE_MONO }} axisLine={false} tickLine={false} width={32} />
                     <recharts.Tooltip
                       cursor={false}
-                      contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: "'Inter', sans-serif", fontSize: 12 }}
+                      contentStyle={{ background: COLORS.elevated, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.paper, fontFamily: APPLE_SANS, fontSize: 12 }}
                       formatter={v => `${v}%`}
                       labelFormatter={l => `Día ${l}`}
                       labelStyle={{ color: COLORS.muted }}
