@@ -2705,6 +2705,10 @@ function Trading({ trades, setTrades, accounts, setAccounts, activeAccountId, se
   const accountTrades = trades.filter(t => t.accountId === activeAccountId);
   const activeAccount = accounts.find(a => a.id === activeAccountId);
   const accountSize = activeAccount?.account_size ?? 10000;
+  // Balance real de la cuenta: tamaño inicial + TODAS las operaciones históricas (no
+  // solo las del mes que se está viendo), para reflejar cuánto tiene la cuenta ahora.
+  const accountAllTimePnl = accountTrades.reduce((s, t) => s + t.pnl, 0);
+  const currentBalance = accountSize + accountAllTimePnl;
 
   const ds = d => `${ym.year}-${String(ym.month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const { cells } = monthMatrix(ym.year, ym.month);
@@ -2850,6 +2854,7 @@ function Trading({ trades, setTrades, accounts, setAccounts, activeAccountId, se
       </div>
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 24 }}>
+        <StatCard icon={PiggyBank} label="Cuenta actual" value={fmtUSD(currentBalance)} sub={`${accountAllTimePnl >= 0 ? "+" : ""}${fmtUSD(accountAllTimePnl)} en beneficio`} accent={accountAllTimePnl >= 0 ? COLORS.teal : COLORS.coral} />
         <StatCard icon={monthPnl >= 0 ? TrendingUp : TrendingDown} label="PNL del mes" value={fmtUSD(monthPnl)} sub={`${monthTrades.length} operaciones`} accent={monthPnl >= 0 ? COLORS.teal : COLORS.coral} />
         <StatCard icon={Target} label="Retorno del mes" value={fmtPct(accountSize ? (monthPnl / accountSize) * 100 : 0)} sub={`sobre cuenta de ${fmtUSD(accountSize)}`} accent={monthPnl >= 0 ? COLORS.teal : COLORS.coral} />
         <StatCard icon={Check} label="% de aciertos" value={`${monthWinRate}%`} sub={`${monthWins} de ${monthTrades.length} operaciones`} accent={COLORS.gold} />
