@@ -1125,7 +1125,7 @@ const MOVEMENT_KIND_META = {
   egreso: { label: "Egresos", dateField: "expense_date", verb: "egreso", get accent() { return COLORS.coral; } },
 };
 
-function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, egresos, addEgreso, editEgreso, deleteEgreso, financeLoading }) {
+function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, egresos, addEgreso, editEgreso, deleteEgreso, expenses, financeLoading }) {
   const todayISO = isoDateLocal(new Date());
   const monthPrefix = todayISO.slice(0, 7);
   const [kind, setKind] = useState("ingreso");
@@ -1137,17 +1137,29 @@ function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, egresos,
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
+  // El saldo cuenta tanto los egresos anotados a mano acá como los gastos ya
+  // registrados en Gastos — así no hay que anotar el mismo gasto dos veces. Los que
+  // vienen de Gastos quedan marcados (source: "gasto") y son de solo lectura acá:
+  // se editan/eliminan desde Gastos, no desde este formulario.
+  const combinedEgresos = [
+    ...egresos.map(e => ({ ...e, source: "egreso" })),
+    ...expenses.map(e => ({
+      id: `gasto-${e.id}`, source: "gasto", amount: e.amount,
+      concept: e.description || e.category || "Gasto", category: e.category, note: "", expense_date: e.date,
+    })),
+  ];
+
   const meta = MOVEMENT_KIND_META[kind];
-  const items = kind === "ingreso" ? incomes : egresos;
+  const items = kind === "ingreso" ? incomes : combinedEgresos;
   const addFn = kind === "ingreso" ? addIncome : addEgreso;
   const editFn = kind === "ingreso" ? editIncome : editEgreso;
   const deleteFn = kind === "ingreso" ? deleteIncome : deleteEgreso;
 
   const totalIncome = incomes.reduce((s, i) => s + Number(i.amount), 0);
-  const totalEgresos = egresos.reduce((s, e) => s + Number(e.amount), 0);
+  const totalEgresos = combinedEgresos.reduce((s, e) => s + Number(e.amount), 0);
   const saldoActual = totalIncome - totalEgresos;
   const monthIncome = incomes.filter(i => i.income_date.startsWith(monthPrefix)).reduce((s, i) => s + Number(i.amount), 0);
-  const monthEgresos = egresos.filter(e => e.expense_date.startsWith(monthPrefix)).reduce((s, e) => s + Number(e.amount), 0);
+  const monthEgresos = combinedEgresos.filter(e => e.expense_date.startsWith(monthPrefix)).reduce((s, e) => s + Number(e.amount), 0);
 
   function switchKind(k) { setKind(k); setConfirmDeleteId(null); }
 
@@ -1203,7 +1215,7 @@ function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, egresos,
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 24 }}>
         <StatCard icon={TrendingUp} label="Ingresos totales" value={fmtCOP(totalIncome)} sub={`${incomes.length} registros`} accent={COLORS.teal} />
-        <StatCard icon={TrendingDown} label="Egresos totales" value={fmtCOP(totalEgresos)} sub={`${egresos.length} registros`} accent={COLORS.coral} />
+        <StatCard icon={TrendingDown} label="Egresos totales" value={fmtCOP(totalEgresos)} sub={`${combinedEgresos.length} registros`} accent={COLORS.coral} />
         <StatCard icon={PiggyBank} label="Saldo actual" value={fmtCOP(saldoActual)} sub="Ingresos - egresos" accent={COLORS.gold} />
         <StatCard icon={TrendingUp} label="Ingresos del mes" value={fmtCOP(monthIncome)} sub={monthPrefix} accent={COLORS.teal} />
         <StatCard icon={TrendingDown} label="Egresos del mes" value={fmtCOP(monthEgresos)} sub={monthPrefix} accent={COLORS.coral} />
@@ -1233,13 +1245,24 @@ function IngresosSaldos({ incomes, addIncome, editIncome, deleteIncome, egresos,
               {sorted.map(row => (
                 <div key={row.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 24px 24px", gap: 16, padding: "14px 20px", borderBottom: `1px solid ${COLORS.border}`, alignItems: "center" }}>
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14, fontWeight: 500, margin: 0 }}>{row.concept}</p>
+                    <p style={{ ...fontBody, color: COLORS.paper, fontSize: 14, fontWeight: 500, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                      {row.concept}
+                      {kind === "egreso" && (
+                        <span style={{
+                          ...fontBody, fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 20, flexShrink: 0,
+                          background: row.source === "gasto" ? COLORS.gold + "22" : COLORS.coral + "22",
+                          color: row.source === "gasto" ? COLORS.gold : COLORS.coral,
+                        }}>{row.source === "gasto" ? "Gasto" : "Egreso"}</span>
+                      )}
+                    </p>
                     {row.note && <p style={{ ...fontBody, color: COLORS.muted, fontSize: 12, margin: "3px 0 0" }}>{row.note}</p>}
                   </div>
                   <span style={{ ...fontMono, color: COLORS.muted, fontSize: 13, whiteSpace: "nowrap" }}>{row[meta.dateField]}</span>
                   <span style={{ ...fontMono, color: COLORS.muted, fontSize: 13, whiteSpace: "nowrap" }}>{row.category || "—"}</span>
                   <span style={{ ...fontMono, color: meta.accent, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>{fmtCOP(row.amount)}</span>
-                  {confirmDeleteId === row.id ? (
+                  {row.source === "gasto" ? (
+                    <span style={{ gridColumn: "5 / 7", ...fontBody, fontSize: 11, color: COLORS.muted, whiteSpace: "nowrap", justifySelf: "end" }}>Editar en Gastos</span>
+                  ) : confirmDeleteId === row.id ? (
                     <div style={{ gridColumn: "5 / 7", display: "flex", gap: 6, alignItems: "center", justifySelf: "end" }}>
                       <span style={{ ...fontBody, fontSize: 12, color: COLORS.muted, whiteSpace: "nowrap" }}>¿Eliminar?</span>
                       <button onClick={() => handleDelete(row.id)} style={{ ...fontBody, fontSize: 12, fontWeight: 600, color: COLORS.coral, background: "none", border: "none", cursor: "pointer" }}>Sí</button>
@@ -4217,7 +4240,7 @@ export default function App() {
         )}
         {view === "resumen" && <Resumen expenses={expenses} tasks={tasks} habits={habits} products={products} customCategories={customCategories} />}
         {view === "gastos" && <Gastos expenses={expenses} setExpenses={setExpenses} monthlyIncome={profile.monthly_income} updateMonthlyIncome={updateMonthlyIncome} customCategories={customCategories} addCustomCategory={addCustomCategory} deleteCustomCategory={deleteCustomCategory} hiddenCategories={profile.hidden_categories || []} hideDefaultCategory={hideDefaultCategory} unhideDefaultCategory={unhideDefaultCategory} insertExpenseRow={insertExpenseRow} patchExpenseRow={patchExpenseRow} deleteExpenseRow={deleteExpenseRow} />}
-        {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} egresos={egresos} addEgreso={addEgreso} editEgreso={editEgreso} deleteEgreso={deleteEgreso} financeLoading={financeLoading} />}
+        {view === "ingresos" && <IngresosSaldos incomes={incomes} addIncome={addIncome} editIncome={editIncome} deleteIncome={deleteIncome} egresos={egresos} addEgreso={addEgreso} editEgreso={editEgreso} deleteEgreso={deleteEgreso} expenses={expenses} financeLoading={financeLoading} />}
         {view === "metas" && <Metas goals={goals} setGoals={setGoals} incomes={incomes} insertGoalRow={insertGoalRow} patchGoalRow={patchGoalRow} deleteGoalRow={deleteGoalRow} financeLoading={financeLoading} />}
         {view === "rutina" && <Rutina activities={activities} setActivities={setActivities} completions={completions} setCompletions={setCompletions} journals={journals} setJournals={setJournals} tasks={tasks} setTasks={setTasks} habits={habits} setHabits={setHabits} goals={goals} setGoals={setGoals} patchGoalRow={patchGoalRow} patchTaskRow={patchTaskRow} patchHabitRow={patchHabitRow} insertActivityRow={insertActivityRow} patchActivityRow={patchActivityRow} deleteActivityRow={deleteActivityRow} toggleCompletionRow={toggleCompletionRow} patchJournalRow={patchJournalRow} />}
         {view === "trading" && <Trading trades={trades} setTrades={setTrades} accounts={tradingAccounts} setAccounts={setTradingAccounts} activeAccountId={activeAccountId} setActiveAccountId={setActiveAccountId} addAccount={insertTradingAccountRow} patchAccount={patchTradingAccountRow} deleteAccount={deleteTradingAccountRow} insertTradeRow={insertTradeRow} patchTradeRow={patchTradeRow} deleteTradeRow={deleteTradeRow} financeLoading={financeLoading} />}
